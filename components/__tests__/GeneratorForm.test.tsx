@@ -1,3 +1,4 @@
+import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { GeneratorForm } from '@/components/GeneratorForm';
@@ -46,6 +47,10 @@ describe('GeneratorForm', () => {
       name: /générer ma lettre/i,
     });
 
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
+
     fireEvent.click(button);
 
     expect(
@@ -68,9 +73,15 @@ describe('GeneratorForm', () => {
       target: { value: 'Je souhaite contester une décision CAF.' },
     });
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /générer ma lettre/i })
-    );
+    const button = await screen.findByRole('button', {
+      name: /générer ma lettre/i,
+    });
+
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
+
+    fireEvent.click(button);
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -100,9 +111,15 @@ describe('GeneratorForm', () => {
       target: { value: 'Je souhaite résilier mon assurance.' },
     });
 
-    fireEvent.click(
-      await screen.findByRole('button', { name: /générer ma lettre/i })
-    );
+    const button = await screen.findByRole('button', {
+      name: /générer ma lettre/i,
+    });
+
+    await waitFor(() => {
+      expect(button).not.toBeDisabled();
+    });
+
+    fireEvent.click(button);
 
     expect(await screen.findByText(/erreur openai/i)).toBeInTheDocument();
   });

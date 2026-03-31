@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { MAX_REQUESTS } from '@/lib/constants';
 
 type GenerateRequestBody = {
   category?: string;
@@ -16,7 +17,6 @@ type RateLimitEntry = {
 };
 
 const rateLimitMap = new Map<string, RateLimitEntry>();
-const MAX_REQUESTS = 5;
 const WINDOW_MS = 60 * 60 * 1000; // 1h
 const MOCK_AI = process.env.MOCK_AI === 'true';
 
@@ -37,6 +37,7 @@ const parseAiPayload = (raw: string): { letter: string; emailVersion: string } |
 };
 
 export async function POST(request: Request) {
+  
   if (MOCK_AI) {
     return NextResponse.json(
       {
@@ -48,6 +49,7 @@ export async function POST(request: Request) {
       { status: 200 }
     );
   }
+
   if (!process.env.OPENAI_API_KEY) {
     return NextResponse.json({ error: 'API key manquante' }, { status: 500 });
   }
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
 
   const now = Date.now();
   const userData = rateLimitMap.get(ip) ?? { count: 0, lastReset: now };
-
+  console.log({userData, ip});
   if (now - userData.lastReset > WINDOW_MS) {
     userData.count = 0;
     userData.lastReset = now;
@@ -76,14 +78,14 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'JSON invalide.' }, { status: 400 });
   }
-
+  console.log({sentBody:body})
   const details = body.details?.trim() || '';
   if (!details || details.length > 3000) {
     return NextResponse.json({ error: 'Description invalide.' }, { status: 400 });
   }
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(process.env.OPENAPI_URL || '', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,7 +116,7 @@ export async function POST(request: Request) {
         max_completion_tokens: 900,
       }),
     });
-
+    console.log({response});
     const data = (await response.json()) as {
       error?: { message?: string };
       choices?: Array<{ message?: { content?: string } }>;

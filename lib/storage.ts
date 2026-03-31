@@ -25,7 +25,7 @@ export function hasFreeGenerationLeft(usedGenerations?: number): boolean {
     typeof usedGenerations === 'number'
       ? usedGenerations
       : getUsedGenerations();
-  console.log({ used, free: FREE_GENERATIONS });
+  // console.log({ used, free: FREE_GENERATIONS });
   return used < FREE_GENERATIONS;
 }
 

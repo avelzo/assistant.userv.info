@@ -31,7 +31,7 @@ export function PricingCard() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre lancement</p>
-          <h3 className="mt-1 text-2xl font-bold text-slate-900">3,99 € pour débloquer la génération premium</h3>
+          <h3 className="mt-1 text-2xl font-bold text-slate-900">{(parseInt(process.env.NEXT_PUBLIC_PRICE_PER_GENERATION || '099') / 100).toFixed(2)} € pour débloquer la génération premium</h3>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
             À utiliser après votre essai gratuit. Vous pourrez ensuite copier votre lettre, récupérer le PDF et obtenir une version email prête à envoyer.
           </p>

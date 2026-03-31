@@ -29,7 +29,7 @@ export async function POST() {
               name: 'Déblocage génération premium',
               description: 'Paiement unitaire pour obtenir le courrier complet + export PDF',
             },
-            unit_amount: 399,
+            unit_amount: parseInt(process.env.NEXT_PUBLIC_PRICE_PER_GENERATION || '099') 
           },
           quantity: 1,
         },
