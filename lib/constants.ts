@@ -10,4 +10,4 @@ export const CATEGORIES = [
 
 export const TONES = ['Standard', 'Ferme', 'Très poli'] as const;
 
-export const MAX_REQUESTS = 5;
+export const API_MAX_REQUESTS = 5; 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { MAX_REQUESTS } from '@/lib/constants';
+import { API_MAX_REQUESTS } from '@/lib/constants';
 
 type GenerateRequestBody = {
   category?: string;
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   userData.count += 1;
   rateLimitMap.set(ip, userData);
 
-  if (userData.count > MAX_REQUESTS) {
+  if (userData.count > API_MAX_REQUESTS) {
     return NextResponse.json({ error: 'Trop de requêtes. Réessaie plus tard.' }, { status: 429 });
   }
 
