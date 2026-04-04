@@ -29,7 +29,7 @@ export default function GeneratePage() {
     <main className="min-h-screen bg-slate-50">
       <Header />
 
-      <section className="mx-auto w-full max-w-3xl px-6">
+      <section className="mx-auto w-full mt-2 px-6 absolute z-50 flex items-center justify-center">
         <PaymentFlag />
       </section>
 

@@ -28,7 +28,8 @@ export default function HomePage() {
     <main className="min-h-screen bg-white">
       <Header />
 
-      <section className="mx-auto w-full max-w-6xl px-6">
+      {/* <section className="mx-auto w-full max-w-6xl px-6"> */}
+      <section className="mx-auto w-full mt-2 px-6 absolute z-50 flex items-center justify-center">
         <PaymentFlag />
       </section>
 

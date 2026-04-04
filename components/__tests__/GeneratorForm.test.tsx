@@ -2,6 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { GeneratorForm } from '@/components/GeneratorForm';
+import * as storage from '@/lib/storage';
 
 const pushMock = vi.fn();
 
@@ -19,13 +20,25 @@ vi.mock('@/lib/constants', () => ({
 vi.mock('@/lib/storage', () => ({
   FREE_GENERATIONS: 1,
   getUsedGenerations: vi.fn(() => 0),
+  getPaidCredits: vi.fn(() => 0),
   incrementUsedGenerations: vi.fn(() => 1),
-  isPremiumUnlocked: vi.fn(() => false),
+  consumePaidCredit: vi.fn(() => 0),
+  addCreditHistoryEntry: vi.fn(() => []),
 }));
+
+const getUsedGenerationsMock = vi.mocked(storage.getUsedGenerations);
+const getPaidCreditsMock = vi.mocked(storage.getPaidCredits);
+const incrementUsedGenerationsMock = vi.mocked(storage.incrementUsedGenerations);
+const consumePaidCreditMock = vi.mocked(storage.consumePaidCredit);
 
 describe('GeneratorForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    getUsedGenerationsMock.mockReturnValue(0);
+    getPaidCreditsMock.mockReturnValue(0);
+    incrementUsedGenerationsMock.mockReturnValue(1);
+    consumePaidCreditMock.mockReturnValue(0);
 
     Object.defineProperty(window, 'sessionStorage', {
       value: {
@@ -92,6 +105,16 @@ describe('GeneratorForm', () => {
       );
     });
 
+    expect(window.sessionStorage.setItem).toHaveBeenCalledWith(
+      'generated-letter',
+      'Voici votre lettre'
+    );
+    expect(window.sessionStorage.setItem).toHaveBeenCalledWith(
+      'generated-email',
+      'Voici votre email'
+    );
+    expect(incrementUsedGenerationsMock).toHaveBeenCalledTimes(1);
+
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith('/result');
     });
@@ -122,5 +145,63 @@ describe('GeneratorForm', () => {
     fireEvent.click(button);
 
     expect(await screen.findByText(/erreur openai/i)).toBeInTheDocument();
+  });
+
+  it('bloque la génération quand l’essai gratuit est épuisé', async () => {
+    getUsedGenerationsMock.mockReturnValue(1);
+
+    render(<GeneratorForm />);
+
+    expect(
+      await screen.findByText(/crédits de génération : 0/i)
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/expliquez le contexte/i), {
+      target: { value: 'Je souhaite contester une décision CAF.' },
+    });
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: /générer ma lettre/i,
+      })
+    );
+
+    expect(
+      await screen.findByText(/achetez un crédit de génération/i)
+    ).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('consomme un crédit quand l’essai gratuit est épuisé', async () => {
+    getUsedGenerationsMock.mockReturnValue(1);
+    getPaidCreditsMock.mockReturnValue(1);
+    consumePaidCreditMock.mockReturnValue(0);
+
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        letter: 'Voici votre lettre avec crédit',
+        emailVersion: 'Voici votre email avec crédit',
+      }),
+    });
+
+    render(<GeneratorForm />);
+
+    fireEvent.change(screen.getByPlaceholderText(/expliquez le contexte/i), {
+      target: { value: 'Je souhaite contester une décision CAF.' },
+    });
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: /générer ma lettre/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/result');
+    });
+
+    expect(incrementUsedGenerationsMock).not.toHaveBeenCalled();
+    expect(consumePaidCreditMock).toHaveBeenCalledTimes(1);
   });
 });

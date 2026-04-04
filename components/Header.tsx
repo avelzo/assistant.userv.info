@@ -17,13 +17,8 @@ export function Header() {
             <p className="text-sm font-bold leading-none text-slate-900">Courriers Administratifs</p>
           </div>
         </Link>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/generate"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-          >
-            Commencer
-          </Link>
+
+        <div className="flex items-center gap-2">
           <HeaderAuthButton />
         </div>
       </div>

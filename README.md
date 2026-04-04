@@ -63,6 +63,7 @@ Pour une version production propre, il faut :
 - gérer un webhook Stripe
 - enregistrer l'état du paiement dans une base de données
 - lier l'accès premium à un compte utilisateur
+(stripe mastercard test mode !: 4000 0025 0000 1001 + date future + cvc 3 chiffres)
 
 ### Gratuit / premium
 Le compteur gratuit est stocké en `localStorage`.

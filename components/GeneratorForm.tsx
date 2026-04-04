@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { CATEGORIES, TONES } from '@/lib/constants';
 import {
   FREE_GENERATIONS,
+  addCreditHistoryEntry,
   getUsedGenerations,
+  getPaidCredits,
   incrementUsedGenerations,
-  isPremiumUnlocked,
+  consumePaidCredit,
 } from '@/lib/storage';
 
 type GenerateResponse = {
@@ -32,12 +34,26 @@ export function GeneratorForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [usedGenerations, setUsedGenerations] = useState(0);
-  const [premiumUnlocked, setPremiumUnlocked] = useState(false);
+  const [paidCredits, setPaidCredits] = useState(0);
 
   useEffect(() => {
-    setUsedGenerations(getUsedGenerations());
-    setPremiumUnlocked(isPremiumUnlocked());
+    const refreshUsageState = () => {
+      setUsedGenerations(getUsedGenerations());
+      setPaidCredits(getPaidCredits());
+    };
+
+    refreshUsageState();
+
+    const handleCreditsUpdated = () => {
+      refreshUsageState();
+    };
+
+    window.addEventListener('credits-updated', handleCreditsUpdated);
     setMounted(true);
+
+    return () => {
+      window.removeEventListener('credits-updated', handleCreditsUpdated);
+    };
   }, []);
 
   const updateField = (key: keyof typeof initialState, value: string) => {
@@ -45,7 +61,7 @@ export function GeneratorForm() {
   };
 
   const freeLeft = Math.max(0, FREE_GENERATIONS - usedGenerations);
-  const canGenerate = premiumUnlocked || freeLeft > 0;
+  const canGenerate = freeLeft > 0 || paidCredits > 0;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -59,7 +75,7 @@ export function GeneratorForm() {
     if (!mounted) return;
 
     if (!canGenerate) {
-      setError("Votre essai gratuit est utilisé. Débloquez la version premium ci-dessous.");
+      setError('Votre essai gratuit est utilisé. Achetez des crédits ci-dessous.');
       return;
     }
 
@@ -80,9 +96,19 @@ export function GeneratorForm() {
         throw new Error(data.error || 'Impossible de générer le courrier.');
       }
 
-      if (!premiumUnlocked) {
+      if (freeLeft > 0) {
         const nextUsed = incrementUsedGenerations();
         setUsedGenerations(nextUsed);
+      } else if (paidCredits > 0) {
+        const nextCredits = consumePaidCredit();
+        setPaidCredits(nextCredits);
+        addCreditHistoryEntry({
+          type: 'consume',
+          credits: 1,
+          source: 'generation',
+          label: 'Génération d\'une lettre',
+        });
+        window.dispatchEvent(new Event('credits-updated'));
       }
 
       sessionStorage.setItem('generated-letter', data.letter);
@@ -109,17 +135,14 @@ export function GeneratorForm() {
           <p className="mt-1 text-sm text-slate-500">
             1 essai gratuit, puis paiement à l&apos;unité.
           </p>
-          {mounted && premiumUnlocked ? (
-            <p className="mt-2 text-sm font-medium text-green-700">
-              Accès premium débloqué sur cet appareil.
-            </p>
-          ) : null}
         </div>
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
           {!mounted
             ? 'Chargement...'
-            : `Essais gratuits restants : ${freeLeft}`}
+            : freeLeft > 0
+              ? `Essais gratuits restants : ${freeLeft}`
+              : `Crédits : ${paidCredits}`}
         </span>
       </div>
 
