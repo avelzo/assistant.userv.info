@@ -1,6 +1,8 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { getCreditPacks } from '@/lib/packs';
+import { authOptions } from '@/lib/auth';
 
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 
@@ -10,6 +12,19 @@ type CreateCheckoutBody = {
   firstname?: string;
   lastname?: string;
 };
+
+function splitFullName(value: string): { firstname: string; lastname: string } {
+  const normalized = value.trim();
+  if (!normalized) {
+    return { firstname: '', lastname: '' };
+  }
+
+  const parts = normalized.split(/\s+/);
+  return {
+    firstname: parts[0] || '',
+    lastname: parts.slice(1).join(' '),
+  };
+}
 
 export async function POST(request: Request) {
   try {
@@ -42,9 +57,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const customerEmail = body.email?.trim().toLowerCase() || undefined;
-    const customerFirstname = body.firstname?.trim() || '';
-    const customerLastname = body.lastname?.trim() || '';
+    const authSession = await getServerSession(authOptions);
+    const sessionEmail = authSession?.user?.email?.trim().toLowerCase() || '';
+    const sessionName = authSession?.user?.name?.trim() || '';
+    const splitSessionName = splitFullName(sessionName);
+
+    const customerEmail = body.email?.trim().toLowerCase() || sessionEmail || undefined;
+    const customerFirstname = body.firstname?.trim() || splitSessionName.firstname;
+    const customerLastname = body.lastname?.trim() || splitSessionName.lastname;
 
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
       selectedPack.stripePriceId
@@ -68,7 +88,7 @@ export async function POST(request: Request) {
             },
           ];
 
-    const session = await stripe.checkout.sessions.create({
+    const stripeSession = await stripe.checkout.sessions.create({
       mode: 'payment',
       success_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/?payment=cancelled`,
@@ -84,7 +104,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: stripeSession.url });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur Stripe.';
     return NextResponse.json({ error: message }, { status: 500 });

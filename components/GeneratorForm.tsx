@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { CATEGORIES, TONES } from '@/lib/constants';
 import {
   FREE_GENERATIONS,
@@ -29,6 +30,7 @@ const initialState = {
 
 export function GeneratorForm() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState(initialState);
   const [loading, setLoading] = useState(false);
@@ -55,6 +57,28 @@ export function GeneratorForm() {
       window.removeEventListener('credits-updated', handleCreditsUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    const sessionFullName = session?.user?.name?.trim() || '';
+    if (!sessionFullName) {
+      return;
+    }
+
+    setForm((prev) => {
+      if (prev.fullName.trim()) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        fullName: sessionFullName,
+      };
+    });
+  }, [session?.user?.name, status]);
 
   const updateField = (key: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -128,14 +152,14 @@ export function GeneratorForm() {
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        {/* <div>
           <h2 className="text-2xl font-bold text-slate-900">
             Générateur de courrier
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             1 essai gratuit, puis paiement à l&apos;unité.
           </p>
-        </div>
+        </div> */}
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
           {!mounted
@@ -163,7 +187,7 @@ export function GeneratorForm() {
         </label>
 
         <label className="space-y-2 text-sm font-medium text-slate-700">
-          Ton
+          Ton du courrier
           <select
             value={form.tone}
             onChange={(e) => updateField('tone', e.target.value)}

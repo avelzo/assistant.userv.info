@@ -35,7 +35,7 @@ export function AccountCard() {
     setMessage('');
 
     if (!email.trim()) {
-      setMessage('Veuillez renseigner un email valide.');
+      setMessage('Renseignez l\'adresse email à associer à votre compte.');
       return;
     }
 
@@ -72,7 +72,7 @@ export function AccountCard() {
       setEmail(data.account.email);
       setPreviousEmail(data.account.email);
       setCredits(data.account.credits);
-      setMessage('Compte mis à jour avec succès.');
+      setMessage('Compte enregistré. Vos crédits et informations de paiement sont maintenant associés à cet email.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erreur inconnue.');
     } finally {
@@ -84,7 +84,7 @@ export function AccountCard() {
     <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="text-2xl font-bold text-slate-900">Mon compte</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Mettez à jour votre nom et email pour lier vos achats de crédits.
+        Renseignez les informations de votre compte pour retrouver plus facilement vos paiements et vos crédits.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -124,13 +124,13 @@ export function AccountCard() {
           disabled={loading}
           className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? 'Mise à jour...' : 'Enregistrer'}
+          {loading ? 'Enregistrement...' : 'Enregistrer mon compte'}
         </button>
       </form>
 
       {credits !== null ? (
         <p className="mt-4 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
-          Solde enregistré côté serveur: {credits} crédit{credits > 1 ? 's' : ''}
+          Solde actuel sur votre compte : {credits} crédit{credits > 1 ? 's' : ''}
         </p>
       ) : null}
 

@@ -16,7 +16,7 @@ export function HeaderAuthButton() {
       <div className="group relative">
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           aria-haspopup="menu"
           aria-label="Ouvrir le menu du compte"
         >
@@ -34,6 +34,17 @@ export function HeaderAuthButton() {
         </button>
 
         <div className="invisible absolute right-0 top-full z-50 w-52 translate-y-1 rounded-xl border border-slate-200 bg-white p-1 opacity-0 shadow-lg shadow-slate-900/5 transition duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
+          <Link
+            href="/generate"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"
+            role="menuitem"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" className="text-slate-500" aria-hidden="true">
+              <path d="M4 16.25h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M13 3.75a1.77 1.77 0 0 1 2.5 2.5l-6.75 6.75L6 13.75l.75-2.75L13 3.75Z" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>Générer Courrier</span>
+          </Link>
           <Link
             href="/account"
             className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-100"

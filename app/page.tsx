@@ -6,7 +6,7 @@ import { PaymentFlag } from '@/components/PaymentFlag';
 export const metadata: Metadata = {
   title: 'Générateur de courriers administratifs IA',
   description:
-    'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et sans inscription.',
+    'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et prêt à l\'emploi.',
   alternates: {
     canonical: '/',
   },
@@ -14,12 +14,12 @@ export const metadata: Metadata = {
     url: '/',
     title: 'Générateur de courriers administratifs IA',
     description:
-      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et sans inscription.',
+      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et prêt à l\'emploi.',
   },
   twitter: {
     title: 'Générateur de courriers administratifs IA',
     description:
-      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et sans inscription.',
+      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et prêt à l\'emploi.',
   },
 };
 
@@ -56,7 +56,7 @@ export default function HomePage() {
             >
               Générer ma lettre gratuitement
             </Link>
-            <p className="text-sm text-indigo-300">1 essai gratuit · aucun compte requis</p>
+            <p className="text-sm text-indigo-300">1 essai gratuit · compte utile pour suivre vos crédits</p>
           </div>
         </div>
       </section>
@@ -95,7 +95,7 @@ export default function HomePage() {
             {
               icon: '📄',
               title: 'Téléchargez ou copiez',
-              desc: 'Export PDF ou copie directe du texte. Utilisable immédiatement, sans inscription.',
+              desc: 'Export PDF ou copie directe du texte. Utilisable immédiatement, avec suivi de vos crédits dans votre compte.',
             },
           ].map(({ icon, title, desc }) => (
             <div key={title} className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">

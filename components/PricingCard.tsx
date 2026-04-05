@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { getAccountProfile } from '@/lib/storage';
 
 type Pack = {
@@ -12,13 +13,25 @@ type Pack = {
 };
 
 export function PricingCard() {
+  const { data: session } = useSession();
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [loadingPacks, setLoadingPacks] = useState(true);
   const [account, setAccount] = useState({ firstname: '', lastname: '', email: '' });
   const [packs, setPacks] = useState<Pack[]>([]);
 
+  const sessionName = session?.user?.name?.trim() || '';
+  const sessionNameParts = sessionName ? sessionName.split(/\s+/) : [];
+  const sessionFirstname = sessionNameParts[0] || '';
+  const sessionLastname = sessionNameParts.slice(1).join(' ');
+  const sessionEmail = session?.user?.email?.trim().toLowerCase() || '';
+
   useEffect(() => {
-    setAccount(getAccountProfile());
+    const profile = getAccountProfile();
+    setAccount({
+      firstname: profile.firstname || sessionFirstname,
+      lastname: profile.lastname || sessionLastname,
+      email: sessionEmail || profile.email,
+    });
 
     const loadPacks = async () => {
       try {
@@ -54,14 +67,14 @@ export function PricingCard() {
     };
 
     void loadPacks();
-  }, []);
+  }, [sessionEmail, sessionFirstname, sessionLastname]);
 
   const helperText = useMemo(() => {
     if (account.email) {
-      return `Crédits liés à ${account.email}.`;
+      return `Les crédits achetés seront rattachés au compte ${account.email}.`;
     }
 
-    return 'Ajoutez votre email dans la page Compte pour lier vos crédits.';
+    return 'Ajoutez votre email dans votre compte avant paiement pour retrouver automatiquement vos crédits.';
   }, [account.email]);
 
   const startCheckout = async (packId: string) => {
@@ -97,9 +110,9 @@ export function PricingCard() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="md:w-1/2">
           <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre lancement</p>
-          <h3 className="mt-1 text-2xl font-bold text-slate-900">Crédits de génération après l&apos;essai gratuit</h3>
+          <h3 className="mt-1 text-2xl font-bold text-slate-900">Continuez avec un pack de crédits</h3>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Choisissez un pack de crédits pour continuer à générer vos lettres, versions email et PDF.
+            Après votre essai gratuit, choisissez le pack adapté pour continuer à générer vos courriers, emails et exports PDF.
           </p>
           <p className="mt-1 text-xs text-slate-500">{helperText}</p>
         </div>
@@ -133,7 +146,7 @@ export function PricingCard() {
                 </span>
               ) : <span className="mt-2 pt-1">&nbsp;</span>}
               {loadingPackId === pack.id ? (
-                <span className="mt-2 block text-xs text-blue-700">Redirection...</span>
+                <span className="mt-2 block text-xs text-blue-700">Redirection vers le paiement...</span>
               ) : null}
             </button>
           ))}

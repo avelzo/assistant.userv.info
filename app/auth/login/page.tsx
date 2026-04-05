@@ -1,99 +1,19 @@
-'use client';
+import type { Metadata } from 'next';
+import { LoginPageContent } from '@/components/auth/LoginPageContent';
 
-import { useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+export const metadata: Metadata = {
+  title: 'Connexion',
+  description: 'Connectez-vous pour retrouver votre compte, vos crédits et vos paiements.',
+  alternates: {
+    canonical: '/auth/login',
+  },
+  openGraph: {
+    title: 'Connexion | Assistant Administratif AI',
+    description: 'Accédez à votre compte pour suivre vos crédits et vos paiements.',
+    url: '/auth/login',
+  },
+};
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    const result = await signIn('credentials', {
-      email,
-      password,
-      redirect: false,
-    });
-
-    setLoading(false);
-
-    if (result?.error) {
-      setError('Email ou mot de passe incorrect.');
-    } else {
-      router.push('/');
-      router.refresh();
-    }
-  }
-
-  return (
-    <>
-      <h1 className="mb-6 text-2xl font-bold text-slate-900">Connexion</h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-            Adresse email
-          </label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="vous@exemple.fr"
-          />
-        </div>
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label htmlFor="password" className="text-sm font-medium text-slate-700">
-              Mot de passe
-            </label>
-            <Link href="/auth/forgot-password" className="text-sm text-indigo-600 hover:underline">
-              Mot de passe oublié ?
-            </Link>
-          </div>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-            placeholder="••••••••"
-          />
-        </div>
-
-        {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-        >
-          {loading ? 'Connexion…' : 'Se connecter'}
-        </button>
-      </form>
-
-      <p className="mt-6 text-center text-sm text-slate-500">
-        Pas encore de compte ?{' '}
-        <Link href="/auth/register" className="font-medium text-indigo-600 hover:underline">
-          Créer un compte
-        </Link>
-      </p>
-    </>
-  );
+  return <LoginPageContent />;
 }

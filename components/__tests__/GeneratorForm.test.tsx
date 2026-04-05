@@ -5,10 +5,20 @@ import { GeneratorForm } from '@/components/GeneratorForm';
 import * as storage from '@/lib/storage';
 
 const pushMock = vi.fn();
+let sessionMock: { user?: { name?: string; email?: string } } | null = null;
+let sessionStatusMock: 'authenticated' | 'unauthenticated' | 'loading' =
+  'unauthenticated';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
     push: pushMock,
+  }),
+}));
+
+vi.mock('next-auth/react', () => ({
+  useSession: () => ({
+    data: sessionMock,
+    status: sessionStatusMock,
   }),
 }));
 
@@ -34,6 +44,8 @@ const consumePaidCreditMock = vi.mocked(storage.consumePaidCredit);
 describe('GeneratorForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sessionMock = null;
+    sessionStatusMock = 'unauthenticated';
 
     getUsedGenerationsMock.mockReturnValue(0);
     getPaidCreditsMock.mockReturnValue(0);
@@ -69,6 +81,21 @@ describe('GeneratorForm', () => {
     expect(
       await screen.findByText(/veuillez décrire la situation/i)
     ).toBeInTheDocument();
+  });
+
+  it('préremplit le nom quand l’utilisateur est authentifié', async () => {
+    sessionMock = {
+      user: {
+        name: 'Laurent Hunaut',
+        email: 'laurent@example.com',
+      },
+    };
+    sessionStatusMock = 'authenticated';
+
+    render(<GeneratorForm />);
+
+    const fullNameInput = await screen.findByDisplayValue('Laurent Hunaut');
+    expect(fullNameInput).toBeInTheDocument();
   });
 
   it('soumet le formulaire et redirige vers /result', async () => {
@@ -153,7 +180,7 @@ describe('GeneratorForm', () => {
     render(<GeneratorForm />);
 
     expect(
-      await screen.findByText(/crédits de génération : 0/i)
+      await screen.findByText(/crédits : 0/i)
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/expliquez le contexte/i), {
@@ -167,7 +194,7 @@ describe('GeneratorForm', () => {
     );
 
     expect(
-      await screen.findByText(/achetez un crédit de génération/i)
+      await screen.findByText(/achetez des crédits ci-dessous/i)
     ).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });

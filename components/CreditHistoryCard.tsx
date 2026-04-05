@@ -44,7 +44,7 @@ export function CreditHistoryCard() {
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Historique de crédits</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Suivez vos achats et consommations de génération.
+            Retrouvez vos achats et vos utilisations récentes en un coup d'oeil.
           </p>
         </div>
 
@@ -56,7 +56,7 @@ export function CreditHistoryCard() {
       <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
         {recentEntries.length === 0 ? (
           <p className="px-4 py-6 text-sm text-slate-500">
-            Aucun mouvement pour le moment.
+            Aucun mouvement de crédits pour le moment.
           </p>
         ) : (
           <ul className="divide-y divide-slate-100">
