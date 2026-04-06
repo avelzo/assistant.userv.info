@@ -12,7 +12,11 @@ type Pack = {
   highlighted: boolean;
 };
 
-export function PricingCard() {
+type PricingCardProps = {
+  variant?: 'default' | 'home';
+};
+
+export function PricingCard({ variant = 'default' }: PricingCardProps) {
   const { data: session } = useSession();
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [loadingPacks, setLoadingPacks] = useState(true);
@@ -105,27 +109,32 @@ export function PricingCard() {
     }
   };
 
+  const sectionClassName =
+    variant === 'home'
+      ? 'p-6 md:p-8'
+      : 'rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm';
+
   return (
-    <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <section className={sectionClassName}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="md:w-1/2">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre lancement</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre de lancement</p>
           <h3 className="mt-1 text-2xl font-bold text-slate-900">Continuez avec un pack de crédits</h3>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
             Après votre essai gratuit, choisissez le pack adapté pour continuer à générer vos courriers, emails et exports PDF.
           </p>
           <p className="mt-1 text-xs text-slate-500">{helperText}</p>
         </div>
-        <div className="grid w-full gap-3 md:w-auto md:grid-cols-3">
+        <div className="grid w-full gap-3 md:w-full md:grid-cols-3">
           {loadingPacks
             ? Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={`pack-skeleton-${index}`}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm"
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 pt-3 pb-10 shadow-sm w-full"
                   aria-hidden="true"
                 >
-                  <div className="h-4 w-11 rounded bg-slate-200/90 animate-pulse" />
-                  <div className="mt-3 h-6 w-11 rounded bg-slate-200/90 animate-pulse" />
+                  <div className="h-4 w-full rounded bg-slate-200/90 animate-pulse" />
+                  <div className="mt-3 h-6 w-full rounded bg-slate-200/90 animate-pulse" />
                 </div>
               ))
             : null}
@@ -150,20 +159,10 @@ export function PricingCard() {
               ) : null}
             </button>
           ))}
-          {/* {
-            Array.from({ length: 3 }).map((_, index) => (
-                <div
-                  key={`pack-skeleton-${index}`}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm"
-                  aria-hidden="true"
-                >
-                  <div className="h-4 w-11 rounded bg-slate-200/90 animate-pulse" />
-                  <div className="mt-3 h-6 w-11 rounded bg-slate-200/90 animate-pulse" />
-                </div>
-              ))
-          } */}
           {!loadingPacks && packs.length === 0 ? (
-            <p className="text-xs text-slate-600">Aucun pack disponible pour le moment.</p>
+            <div className="col-span-3 px-3 py-2 flex items-center justify-center">
+              <p className="text-xs text-slate-600">Aucun pack disponible pour le moment.</p>
+            </div>
           ) : null}
         </div>
       </div>

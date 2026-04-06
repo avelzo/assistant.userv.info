@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
+import { clearStorageOnSignOut } from '@/lib/storage';
 
 export function HeaderAuthButton() {
   const { data: session, status } = useSession();
@@ -70,7 +71,7 @@ export function HeaderAuthButton() {
           <div className="mt-1 border-t border-slate-200 pt-1">
             <button
               type="button"
-              onClick={() => signOut({ callbackUrl: '/' })}
+              onClick={() => { clearStorageOnSignOut(); void signOut({ callbackUrl: '/' }); }}
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-100"
               role="menuitem"
             >

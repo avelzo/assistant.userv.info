@@ -178,6 +178,16 @@ export function getCreditHistory(): CreditHistoryEntry[] {
   }
 }
 
+export function clearStorageOnSignOut(): void {
+  if (typeof window === 'undefined') return;
+
+  window.localStorage.removeItem(PAID_CREDITS_KEY);
+  window.localStorage.removeItem(PREMIUM_KEY);
+  window.localStorage.removeItem(CREDIT_HISTORY_KEY);
+  window.localStorage.removeItem(PROCESSED_SESSIONS_KEY);
+  window.localStorage.removeItem(ACCOUNT_PROFILE_KEY);
+}
+
 export function addCreditHistoryEntry(entry: Omit<CreditHistoryEntry, 'id' | 'createdAt'>): CreditHistoryEntry[] {
   if (typeof window === 'undefined') return [];
 
