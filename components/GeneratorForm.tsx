@@ -2,17 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { CATEGORIES, TONES } from '@/lib/constants';
 import {
   FREE_GENERATIONS,
+  addCreditHistoryEntry,
   getUsedGenerations,
+  getPaidCredits,
   incrementUsedGenerations,
-  isPremiumUnlocked,
+  consumePaidCredit,
+  setPaidCredits,
 } from '@/lib/storage';
 
 type GenerateResponse = {
   letter: string;
   emailVersion: string;
+  billingType?: string;
+  remainingCredits?: number;
 };
 
 const initialState = {
@@ -27,25 +33,87 @@ const initialState = {
 
 export function GeneratorForm() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState(initialState);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [usedGenerations, setUsedGenerations] = useState(0);
-  const [premiumUnlocked, setPremiumUnlocked] = useState(false);
+  const [paidCredits, setPaidCredits] = useState(0);
 
   useEffect(() => {
-    setUsedGenerations(getUsedGenerations());
-    setPremiumUnlocked(isPremiumUnlocked());
+    const refreshUsageState = () => {
+      setUsedGenerations(getUsedGenerations());
+      setPaidCredits(getPaidCredits());
+    };
+
+    refreshUsageState();
+
+    const handleCreditsUpdated = () => {
+      refreshUsageState();
+    };
+
+    window.addEventListener('credits-updated', handleCreditsUpdated);
     setMounted(true);
+
+    return () => {
+      window.removeEventListener('credits-updated', handleCreditsUpdated);
+    };
   }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    const sessionFullName = session?.user?.name?.trim() || '';
+    if (!sessionFullName) {
+      return;
+    }
+
+    setForm((prev) => {
+      if (prev.fullName.trim()) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        fullName: sessionFullName,
+      };
+    });
+  }, [session?.user?.name, status]);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    const syncCreditsFromServer = async () => {
+      try {
+        const response = await fetch('/api/account', { method: 'GET' });
+        const data = (await response.json()) as {
+          account?: { credits: number };
+        };
+
+        if (response.ok && data.account) {
+          const serverCredits = Math.max(0, Number(data.account.credits) || 0);
+          setPaidCredits(serverCredits);
+          window.dispatchEvent(new Event('credits-updated'));
+        }
+      } catch {
+        // Silencieux en cas d'erreur, on garde le localStorage
+      }
+    };
+
+    void syncCreditsFromServer();
+  }, [status]);
 
   const updateField = (key: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const freeLeft = Math.max(0, FREE_GENERATIONS - usedGenerations);
-  const canGenerate = premiumUnlocked || freeLeft > 0;
+  const canGenerate = freeLeft > 0 || paidCredits > 0;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -59,7 +127,7 @@ export function GeneratorForm() {
     if (!mounted) return;
 
     if (!canGenerate) {
-      setError("Votre essai gratuit est utilisé. Débloquez la version premium ci-dessous.");
+      setError('Votre essai gratuit est utilisé. Achetez des crédits ci-dessous.');
       return;
     }
 
@@ -80,7 +148,12 @@ export function GeneratorForm() {
         throw new Error(data.error || 'Impossible de générer le courrier.');
       }
 
-      if (!premiumUnlocked) {
+      // Mettre à jour les crédits depuis la réponse serveur si connecté
+      if (typeof data.remainingCredits === 'number') {
+        setPaidCredits(data.remainingCredits);
+        window.dispatchEvent(new Event('credits-updated'));
+      } else if (freeLeft > 0) {
+        // Essai gratuit utilisé localement
         const nextUsed = incrementUsedGenerations();
         setUsedGenerations(nextUsed);
       }
@@ -102,24 +175,21 @@ export function GeneratorForm() {
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        {/* <div>
           <h2 className="text-2xl font-bold text-slate-900">
             Générateur de courrier
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             1 essai gratuit, puis paiement à l&apos;unité.
           </p>
-          {mounted && premiumUnlocked ? (
-            <p className="mt-2 text-sm font-medium text-green-700">
-              Accès premium débloqué sur cet appareil.
-            </p>
-          ) : null}
-        </div>
+        </div> */}
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
           {!mounted
             ? 'Chargement...'
-            : `Essais gratuits restants : ${freeLeft}`}
+            : freeLeft > 0
+              ? `Essais gratuits restants : ${freeLeft}`
+              : `${paidCredits} crédits disponibles`}
         </span>
       </div>
 
@@ -140,7 +210,7 @@ export function GeneratorForm() {
         </label>
 
         <label className="space-y-2 text-sm font-medium text-slate-700">
-          Ton
+          Ton du courrier
           <select
             value={form.tone}
             onChange={(e) => updateField('tone', e.target.value)}

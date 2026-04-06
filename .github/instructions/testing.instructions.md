@@ -19,7 +19,7 @@ applyTo: "components/__tests__/**/*.tsx,e2e/**/*.ts,vitest.config.mts,vitest.set
   - validate user-visible outcomes,
   - assert route navigation side effects,
   - avoid asserting implementation details that make tests fragile.
-- For API error states and validation rules, ensure at least one test covers each critical branch introduced by a change.
+- For API error states and validation rules, ensure at least one test covers each critical branch introduced by a change (generate, auth, account, credits claim, checkout).
 - For E2E, follow patterns in `e2e/home.spec.ts` and keep assertions deterministic.
 - When adding E2E scenarios, avoid network flakiness by using stable flows and explicit expectations.
 - Keep compatibility with Playwright configuration in `playwright.config.ts` (base URL and `webServer` behavior).

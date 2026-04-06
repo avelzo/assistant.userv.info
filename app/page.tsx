@@ -2,11 +2,13 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { PaymentFlag } from '@/components/PaymentFlag';
+import { HeroGenerateLink } from '@/components/HeroGenerateLink';
+import { PricingCard } from '@/components/PricingCard';
 
 export const metadata: Metadata = {
   title: 'Générateur de courriers administratifs IA',
   description:
-    'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et sans inscription.',
+    'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et prêt à l\'emploi.',
   alternates: {
     canonical: '/',
   },
@@ -14,12 +16,12 @@ export const metadata: Metadata = {
     url: '/',
     title: 'Générateur de courriers administratifs IA',
     description:
-      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et sans inscription.',
+      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et prêt à l\'emploi.',
   },
   twitter: {
     title: 'Générateur de courriers administratifs IA',
     description:
-      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et sans inscription.',
+      'Rédigez rapidement vos lettres et emails administratifs en français avec un assistant IA simple, rapide et prêt à l\'emploi.',
   },
 };
 
@@ -28,7 +30,8 @@ export default function HomePage() {
     <main className="min-h-screen bg-white">
       <Header />
 
-      <section className="mx-auto w-full max-w-6xl px-6">
+      {/* <section className="mx-auto w-full max-w-6xl px-6"> */}
+      <section className="mx-auto w-full mt-2 px-6 absolute z-50 flex items-center justify-center">
         <PaymentFlag />
       </section>
 
@@ -49,13 +52,8 @@ export default function HomePage() {
             Décrivez votre situation, l&apos;IA génère une lettre structurée et professionnelle — CAF, assurances, employeur, bailleur et plus encore.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Link
-              href="/generate"
-              className="rounded-xl bg-white px-8 py-4 text-base font-bold text-indigo-900 shadow-lg transition hover:bg-indigo-50"
-            >
-              Générer ma lettre gratuitement
-            </Link>
-            <p className="text-sm text-indigo-300">1 essai gratuit · aucun compte requis</p>
+            <HeroGenerateLink className="rounded-xl bg-white px-8 py-4 text-base font-bold text-indigo-900 shadow-lg transition hover:bg-indigo-50" />
+            <p className="text-sm text-indigo-300">1 essai gratuit · compte utile pour suivre vos crédits</p>
           </div>
         </div>
       </section>
@@ -94,7 +92,7 @@ export default function HomePage() {
             {
               icon: '📄',
               title: 'Téléchargez ou copiez',
-              desc: 'Export PDF ou copie directe du texte. Utilisable immédiatement, sans inscription.',
+              desc: 'Export PDF ou copie directe du texte. Utilisable immédiatement, avec suivi de vos crédits dans votre compte.',
             },
           ].map(({ icon, title, desc }) => (
             <div key={title} className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
@@ -103,6 +101,14 @@ export default function HomePage() {
               <p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50 to-blue-100 px-6 py-20">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.18),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.18),transparent_45%)]" />
+        <div className="relative mx-auto w-full max-w-6xl">
+          <PricingCard variant="home" />
         </div>
       </section>
 

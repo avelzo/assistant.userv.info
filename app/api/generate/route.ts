@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
-import { MAX_REQUESTS } from '@/lib/constants';
+import { getServerSession } from 'next-auth';
+import { GenerationBillingType, CreditLedgerEntryType } from '@prisma/client';
+import { API_MAX_REQUESTS } from '@/lib/constants';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 type GenerateRequestBody = {
   category?: string;
@@ -16,8 +20,15 @@ type RateLimitEntry = {
   lastReset: number;
 };
 
+type FreeTrialEntry = {
+  used: boolean;
+  timestamp: number;
+};
+
 const rateLimitMap = new Map<string, RateLimitEntry>();
+const freeTrialMap = new Map<string, FreeTrialEntry>();
 const WINDOW_MS = 60 * 60 * 1000; // 1h
+const FREE_TRIAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MOCK_AI = process.env.MOCK_AI === 'true';
 
 const parseAiPayload = (raw: string): { letter: string; emailVersion: string } | null => {
@@ -37,55 +48,99 @@ const parseAiPayload = (raw: string): { letter: string; emailVersion: string } |
 };
 
 export async function POST(request: Request) {
-  
-  if (MOCK_AI) {
-    return NextResponse.json(
-      {
-        letter:
-          "Objet : Demande de réexamen\n\nMadame, Monsieur,\n\nJe vous contacte afin de solliciter le réexamen de ma situation. Au regard des éléments transmis, je souhaite que mon dossier soit étudié à nouveau.\n\nJe reste à votre disposition pour fournir tout document complémentaire.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
-        emailVersion:
-          "Bonjour,\n\nJe souhaite demander le réexamen de mon dossier. Je reste disponible pour transmettre tout justificatif complémentaire.\n\nCordialement.",
-      },
-      { status: 200 }
-    );
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'API key manquante' }, { status: 500 });
-  }
-
-  const ipHeader = request.headers.get('x-forwarded-for');
-  const ip = ipHeader?.split(',')[0]?.trim() || 'unknown';
-
-  const now = Date.now();
-  const userData = rateLimitMap.get(ip) ?? { count: 0, lastReset: now };
-  console.log({userData, ip});
-  if (now - userData.lastReset > WINDOW_MS) {
-    userData.count = 0;
-    userData.lastReset = now;
-  }
-
-  userData.count += 1;
-  rateLimitMap.set(ip, userData);
-
-  if (userData.count > MAX_REQUESTS) {
-    return NextResponse.json({ error: 'Trop de requêtes. Réessaie plus tard.' }, { status: 429 });
-  }
-
-  let body: GenerateRequestBody;
   try {
-    body = (await request.json()) as GenerateRequestBody;
-  } catch {
-    return NextResponse.json({ error: 'JSON invalide.' }, { status: 400 });
-  }
-  console.log({sentBody:body})
-  const details = body.details?.trim() || '';
-  if (!details || details.length > 3000) {
-    return NextResponse.json({ error: 'Description invalide.' }, { status: 400 });
-  }
+    const ipHeader = request.headers.get('x-forwarded-for');
+    const ip = ipHeader?.split(',')[0]?.trim() || 'unknown';
 
-  try {
-    const response = await fetch(process.env.OPENAPI_URL || '', {
+    // Rate limiting
+    const now = Date.now();
+    const userData = rateLimitMap.get(ip) ?? { count: 0, lastReset: now };
+    if (now - userData.lastReset > WINDOW_MS) {
+      userData.count = 0;
+      userData.lastReset = now;
+    }
+    userData.count += 1;
+    rateLimitMap.set(ip, userData);
+
+    if (userData.count > API_MAX_REQUESTS) {
+      return NextResponse.json({ error: 'Trop de requêtes. Réessaie plus tard.' }, { status: 429 });
+    }
+
+    if (MOCK_AI) {
+      return NextResponse.json(
+        {
+          letter:
+            "Objet : Demande de réexamen\n\nMadame, Monsieur,\n\nJe vous contacte afin de solliciter le réexamen de ma situation. Au regard des éléments transmis, je souhaite que mon dossier soit étudié à nouveau.\n\nJe reste à votre disposition pour fournir tout document complémentaire.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+          emailVersion:
+            "Bonjour,\n\nJe souhaite demander le réexamen de mon dossier. Je reste disponible pour transmettre tout justificatif complémentaire.\n\nCordialement.",
+        },
+        { status: 200 }
+      );
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: 'API key manquante' }, { status: 500 });
+    }
+
+    let body: GenerateRequestBody;
+    try {
+      body = (await request.json()) as GenerateRequestBody;
+    } catch {
+      return NextResponse.json({ error: 'JSON invalide.' }, { status: 400 });
+    }
+
+    const details = body.details?.trim() || '';
+    if (!details || details.length > 3000) {
+      return NextResponse.json({ error: 'Description invalide.' }, { status: 400 });
+    }
+
+    // Vérifier session et crédits
+    const session = await getServerSession(authOptions);
+    const email = session?.user?.email?.trim().toLowerCase() || '';
+
+    let billingType: GenerationBillingType = GenerationBillingType.FREE;
+    let accountEmail: string | null = null;
+
+    if (email) {
+      // Utilisateur connecté
+      accountEmail = email;
+
+      // Vérifier si essai gratuit déjà utilisé
+      const existingFreeGeneration = await prisma.letterGeneration.findFirst({
+        where: {
+          accountEmail: email,
+          billingType: GenerationBillingType.FREE,
+        },
+      });
+
+      if (existingFreeGeneration) {
+        // Essai gratuit déjà utilisé, vérifier crédits payants
+        const balance = await prisma.creditBalance.findUnique({ where: { email } });
+        if (!balance || balance.credits < 1) {
+          return NextResponse.json(
+            { error: 'Vous n\'avez pas assez de crédits. Achetez-en ci-dessous.' },
+            { status: 402 }
+          );
+        }
+        billingType = GenerationBillingType.CREDIT;
+      } else {
+        // Essai gratuit disponible
+        billingType = GenerationBillingType.FREE;
+      }
+    } else {
+      // Utilisateur non connecté, vérifier essai gratuit par IP
+      const trialEntry = freeTrialMap.get(ip);
+      if (trialEntry && now - trialEntry.timestamp < FREE_TRIAL_WINDOW_MS && trialEntry.used) {
+        return NextResponse.json(
+          { error: 'Vous avez déjà utilisé votre essai gratuit. Créez un compte ou achetez des crédits.' },
+          { status: 402 }
+        );
+      }
+      billingType = GenerationBillingType.FREE;
+    }
+
+    // Appeler OpenAI
+    const aiResponse = await fetch(process.env.OPENAPI_URL || '', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -116,20 +171,20 @@ export async function POST(request: Request) {
         max_completion_tokens: 900,
       }),
     });
-    console.log({response});
-    const data = (await response.json()) as {
+
+    const aiData = (await aiResponse.json()) as {
       error?: { message?: string };
       choices?: Array<{ message?: { content?: string } }>;
     };
 
-    if (!response.ok) {
+    if (!aiResponse.ok) {
       return NextResponse.json(
-        { error: data.error?.message || 'Erreur OpenAI.' },
-        { status: response.status || 500 },
+        { error: aiData.error?.message || 'Erreur OpenAI.' },
+        { status: aiResponse.status || 500 }
       );
     }
 
-    const content = data.choices?.[0]?.message?.content;
+    const content = aiData.choices?.[0]?.message?.content;
     if (!content) {
       return NextResponse.json({ error: 'Réponse IA vide.' }, { status: 502 });
     }
@@ -139,8 +194,66 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Format de réponse IA invalide.' }, { status: 502 });
     }
 
-    return NextResponse.json({ letter: parsed.letter, emailVersion: parsed.emailVersion }, { status: 200 });
-  } catch {
-    return NextResponse.json({ error: 'Erreur génération' }, { status: 500 });
+    // Créer la LetterGeneration et déduire crédits si nécessaire
+    await prisma.$transaction(async (transaction) => {
+      await transaction.letterGeneration.create({
+        data: {
+          accountEmail,
+          category: body.category || 'Autre',
+          tone: body.tone || 'Standard',
+          fullName: body.fullName || null,
+          recipient: body.recipient || null,
+          subject: body.subject || null,
+          details,
+          attachments: body.attachments || null,
+          letter: parsed.letter,
+          emailVersion: parsed.emailVersion,
+          billingType,
+          creditsSpent: billingType === GenerationBillingType.FREE ? 0 : 1,
+        },
+      });
+
+      if (billingType === GenerationBillingType.CREDIT && email) {
+        // Déduire 1 crédit de la balance
+        await transaction.creditBalance.update({
+          where: { email },
+          data: { credits: { decrement: 1 } },
+        });
+
+        // Créer une entrée de ledger
+        await transaction.creditLedgerEntry.create({
+          data: {
+            accountEmail: email,
+            delta: -1,
+            type: CreditLedgerEntryType.CONSUMPTION,
+            source: 'GENERATION',
+            label: 'Génération d\'une lettre',
+          },
+        });
+      } else if (billingType === GenerationBillingType.FREE && !email) {
+        // Marquer l'essai gratuit comme utilisé pour cette IP
+        freeTrialMap.set(ip, { used: true, timestamp: now });
+      }
+    });
+
+    // Retourner la génération + crédits restants
+    let remainingCredits = 0;
+    if (email && billingType === GenerationBillingType.CREDIT) {
+      const updatedBalance = await prisma.creditBalance.findUnique({ where: { email } });
+      remainingCredits = updatedBalance?.credits ?? 0;
+    }
+
+    return NextResponse.json(
+      {
+        letter: parsed.letter,
+        emailVersion: parsed.emailVersion,
+        billingType,
+        remainingCredits,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur génération';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

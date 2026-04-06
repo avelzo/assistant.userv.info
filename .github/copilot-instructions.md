@@ -8,14 +8,22 @@
 
 ## Architecture
 - App routes live in app/ using App Router:
-  - app/page.tsx is the landing flow.
+  - app/page.tsx is the marketing/landing entry.
+  - app/generate/page.tsx is the generator flow.
   - app/result/page.tsx renders generated content from session storage.
+  - app/auth/* hosts login/register/forgot/reset flows.
+  - app/account/page.tsx and app/settings/page.tsx expose account and profile settings.
 - API routes are in app/api:
   - app/api/generate/route.ts handles OpenAI generation and in-memory rate limiting.
   - app/api/create-checkout-session/route.ts handles Stripe checkout session creation.
+  - app/api/credits/claim/route.ts validates Stripe sessions and credits user balances.
+  - app/api/packs/route.ts exposes active credit packs.
+  - app/api/account/route.ts upserts account profile data.
+  - app/api/auth/* and app/api/auth/[...nextauth]/route.ts handle auth flows.
 - Reusable UI lives in components/, and shared client helpers live in lib/.
-- Client-side persistence is intentional for this MVP:
-  - lib/storage.ts manages free-usage and premium unlock state in localStorage.
+- Server-side persistence exists via Prisma + MongoDB for users, credits, and generations.
+- Client-side persistence remains intentional for UX continuity:
+  - lib/storage.ts mirrors usage/credits/account hints in localStorage.
   - Generation results are passed through sessionStorage between pages.
 
 ## Build and Test
@@ -29,7 +37,10 @@
 - CI reference: Jenkinsfile runs lint, typecheck, tests, build, then Playwright Chromium tests.
 
 ## Conventions
-- Do not introduce persistence or auth assumptions unless asked; this repository is an MVP and intentionally does not include a database or user accounts.
+- Preserve the current auth and persistence model unless explicitly asked to redesign it:
+  - NextAuth credentials flow,
+  - Prisma MongoDB models,
+  - credit ledger and balances.
 - For generation changes, preserve the JSON contract returned by app/api/generate/route.ts: letter and emailVersion.
 - For UI changes touching premium flow, preserve compatibility with the existing localStorage/sessionStorage keys and behavior.
 - Keep SSR-safe browser storage access patterns (guard window usage) in client code.

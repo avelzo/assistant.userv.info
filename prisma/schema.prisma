@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String              @id @default(auto()) @map("_id") @db.ObjectId
+  email         String              @unique
+  password      String?
+  firstname     String?
+  lastname      String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  creditBalance CreditBalance?
+  creditEntries CreditLedgerEntry[]
+  generations   LetterGeneration[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, expiresAt])
+}
+
+enum CreditLedgerEntryType {
+  PURCHASE
+  CONSUMPTION
+  ADJUSTMENT
+  REFUND
+}
+
+enum CreditLedgerEntrySource {
+  STRIPE
+  GENERATION
+  ADMIN
+  MIGRATION
+}
+
+enum GenerationBillingType {
+  FREE
+  CREDIT
+  LEGACY_PREMIUM
+  ADMIN
+}
+
+model CreditBalance {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  email     String      @unique
+  credits   Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [email], references: [email])
+
+  @@map("credit_balances")
+}
+
+model CreditLedgerEntry {
+  id                    String                  @id @default(auto()) @map("_id") @db.ObjectId
+  accountEmail          String                  @map("email")
+  delta                 Int
+  type                  CreditLedgerEntryType
+  source                CreditLedgerEntrySource
+  label                 String
+  packId                String?
+  sessionId             String?
+  stripePaymentIntentId String?
+  metadata              Json?
+  createdAt             DateTime                @default(now())
+  user                  User                    @relation(fields: [accountEmail], references: [email])
+
+  @@index([accountEmail, createdAt])
+  @@index([sessionId])
+  @@map("credits_ledger")
+}
+
+model LetterGeneration {
+  id           String               @id @default(auto()) @map("_id") @db.ObjectId
+  accountEmail String?              @map("email")
+  category     String
+  tone         String
+  fullName     String?
+  recipient    String?
+  subject      String?
+  details      String
+  attachments  String?
+  letter       String
+  emailVersion String?
+  billingType  GenerationBillingType
+  creditsSpent Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  user         User?                @relation(fields: [accountEmail], references: [email])
+
+  @@index([accountEmail, createdAt])
+  @@map("letter_generations")
+}
+
+model CreditPack {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  code            String   @unique
+  label           String
+  credits         Int
+  priceCents      Int
+  stripePriceId   String?
+  highlighted     Boolean  @default(false)
+  active          Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}

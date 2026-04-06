@@ -1,15 +1,98 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { getAccountProfile } from '@/lib/storage';
 
-export function PricingCard() {
-  const [loading, setLoading] = useState(false);
+type Pack = {
+  id: string;
+  label: string;
+  credits: number;
+  priceCents: number;
+  highlighted: boolean;
+};
 
-  const startCheckout = async () => {
+type PricingCardProps = {
+  variant?: 'default' | 'home';
+};
+
+export function PricingCard({ variant = 'default' }: PricingCardProps) {
+  const { data: session } = useSession();
+  const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
+  const [loadingPacks, setLoadingPacks] = useState(true);
+  const [account, setAccount] = useState({ firstname: '', lastname: '', email: '' });
+  const [packs, setPacks] = useState<Pack[]>([]);
+
+  const sessionName = session?.user?.name?.trim() || '';
+  const sessionNameParts = sessionName ? sessionName.split(/\s+/) : [];
+  const sessionFirstname = sessionNameParts[0] || '';
+  const sessionLastname = sessionNameParts.slice(1).join(' ');
+  const sessionEmail = session?.user?.email?.trim().toLowerCase() || '';
+
+  useEffect(() => {
+    const profile = getAccountProfile();
+    setAccount({
+      firstname: profile.firstname || sessionFirstname,
+      lastname: profile.lastname || sessionLastname,
+      email: sessionEmail || profile.email,
+    });
+
+    const loadPacks = async () => {
+      try {
+        const response = await fetch('/api/packs');
+        const data = (await response.json()) as {
+          packs?: Array<{
+            code: string;
+            label: string;
+            credits: number;
+            priceCents: number;
+            highlighted: boolean;
+          }>;
+        };
+
+        if (!response.ok || !data.packs) {
+          throw new Error('Impossible de charger les packs.');
+        }
+
+        setPacks(
+          data.packs.map((pack) => ({
+            id: pack.code,
+            label: pack.label,
+            credits: pack.credits,
+            priceCents: pack.priceCents,
+            highlighted: pack.highlighted,
+          }))
+        );
+      } catch {
+        setPacks([]);
+      } finally {
+        setLoadingPacks(false);
+      }
+    };
+
+    void loadPacks();
+  }, [sessionEmail, sessionFirstname, sessionLastname]);
+
+  const helperText = useMemo(() => {
+    if (account.email) {
+      return `Les crédits achetés seront rattachés au compte ${account.email}.`;
+    }
+
+    return 'Ajoutez votre email dans votre compte avant paiement pour retrouver automatiquement vos crédits.';
+  }, [account.email]);
+
+  const startCheckout = async (packId: string) => {
     try {
-      setLoading(true);
+      setLoadingPackId(packId);
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          packId,
+          email: account.email,
+          firstname: account.firstname,
+          lastname: account.lastname,
+        }),
       });
 
       const data = (await response.json()) as { url?: string; error?: string };
@@ -22,27 +105,66 @@ export function PricingCard() {
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Erreur inconnue.');
     } finally {
-      setLoading(false);
+      setLoadingPackId(null);
     }
   };
 
+  const sectionClassName =
+    variant === 'home'
+      ? 'p-6 md:p-8'
+      : 'rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm';
+
   return (
-    <section className="rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre lancement</p>
-          <h3 className="mt-1 text-2xl font-bold text-slate-900">{(parseInt(process.env.NEXT_PUBLIC_PRICE_PER_GENERATION || '099') / 100).toFixed(2)} € pour débloquer la génération premium</h3>
+    <section className={sectionClassName}>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="md:w-1/2">
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre de lancement</p>
+          <h3 className="mt-1 text-2xl font-bold text-slate-900">Continuez avec un pack de crédits</h3>
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            À utiliser après votre essai gratuit. Vous pourrez ensuite copier votre lettre, récupérer le PDF et obtenir une version email prête à envoyer.
+            Après votre essai gratuit, choisissez le pack adapté pour continuer à générer vos courriers, emails et exports PDF.
           </p>
+          <p className="mt-1 text-xs text-slate-500">{helperText}</p>
         </div>
-        <button
-          onClick={startCheckout}
-          disabled={loading}
-          className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {loading ? 'Redirection...' : 'Débloquer maintenant'}
-        </button>
+        <div className="grid w-full gap-3 md:w-full md:grid-cols-3">
+          {loadingPacks
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <div
+                  key={`pack-skeleton-${index}`}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 pt-3 pb-10 shadow-sm w-full"
+                  aria-hidden="true"
+                >
+                  <div className="h-4 w-full rounded bg-slate-200/90 animate-pulse" />
+                  <div className="mt-3 h-6 w-full rounded bg-slate-200/90 animate-pulse" />
+                </div>
+              ))
+            : null}
+          {packs.map((pack) => (
+            <button
+              key={pack.id}
+              onClick={() => startCheckout(pack.id)}
+              disabled={loadingPackId !== null || loadingPacks}
+              className="rounded-2xl border border-slate-200 bg-white px-2 py-2 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="block text-sm font-semibold text-slate-700">{pack.label}</span>
+              <span className="mt-2 block text-xl text-slate-500">
+                {(pack.priceCents / 100).toFixed(2)} €
+              </span>
+              {pack.highlighted ? (
+                <span className="mt-2 pt-1 border-t block text-xs font-semibold uppercase tracking-wide text-blue-700">
+                  Populaire
+                </span>
+              ) : <span className="mt-2 pt-1">&nbsp;</span>}
+              {loadingPackId === pack.id ? (
+                <span className="mt-2 block text-xs text-blue-700">Redirection vers le paiement...</span>
+              ) : null}
+            </button>
+          ))}
+          {!loadingPacks && packs.length === 0 ? (
+            <div className="col-span-3 px-3 py-2 flex items-center justify-center">
+              <p className="text-xs text-slate-600">Aucun pack disponible pour le moment.</p>
+            </div>
+          ) : null}
+        </div>
       </div>
     </section>
   );
