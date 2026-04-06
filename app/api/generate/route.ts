@@ -98,6 +98,8 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase() || '';
 
+    const maxFreeGenerations = Number(process.env.NEXT_PUBLIC_FREE_GENERATIONS || '1');
+
     let billingType: GenerationBillingType = GenerationBillingType.FREE;
     let accountEmail: string | null = null;
 
@@ -105,15 +107,14 @@ export async function POST(request: Request) {
       // Utilisateur connecté
       accountEmail = email;
 
-      // Vérifier si essai gratuit déjà utilisé
-      const existingFreeGeneration = await prisma.letterGeneration.findFirst({
-        where: {
-          accountEmail: email,
-          billingType: GenerationBillingType.FREE,
-        },
+      const user = await prisma.user.findUnique({
+        where: { email },
+        select: { freeGenerationsUsed: true },
       });
 
-      if (existingFreeGeneration) {
+      const freeGenerationsUsed = user?.freeGenerationsUsed ?? 0;
+
+      if (freeGenerationsUsed >= maxFreeGenerations) {
         // Essai gratuit déjà utilisé, vérifier crédits payants
         const balance = await prisma.creditBalance.findUnique({ where: { email } });
         if (!balance || balance.credits < 1) {
@@ -229,6 +230,11 @@ export async function POST(request: Request) {
             source: 'GENERATION',
             label: 'Génération d\'une lettre',
           },
+        });
+      } else if (billingType === GenerationBillingType.FREE && email) {
+        await transaction.user.update({
+          where: { email },
+          data: { freeGenerationsUsed: { increment: 1 } },
         });
       } else if (billingType === GenerationBillingType.FREE && !email) {
         // Marquer l'essai gratuit comme utilisé pour cette IP

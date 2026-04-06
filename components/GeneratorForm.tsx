@@ -5,13 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { CATEGORIES, TONES } from '@/lib/constants';
 import {
-  FREE_GENERATIONS,
   addCreditHistoryEntry,
-  getUsedGenerations,
-  getPaidCredits,
-  incrementUsedGenerations,
   consumePaidCredit,
-  setPaidCredits,
+  getPaidCredits,
 } from '@/lib/storage';
 
 type GenerateResponse = {
@@ -38,13 +34,30 @@ export function GeneratorForm() {
   const [form, setForm] = useState(initialState);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [usedGenerations, setUsedGenerations] = useState(0);
+  const [freeGenerationsRemaining, setFreeGenerationsRemaining] = useState(0);
   const [paidCredits, setPaidCredits] = useState(0);
 
   useEffect(() => {
-    const refreshUsageState = () => {
-      setUsedGenerations(getUsedGenerations());
-      setPaidCredits(getPaidCredits());
+    const refreshUsageState = async () => {
+      if (session?.user?.email) {
+        try {
+          const response = await fetch('/api/user/status');
+          const data = (await response.json()) as {
+            freeGenerationsRemaining?: number;
+            paidCredits?: number;
+          };
+          if (response.ok && typeof data.freeGenerationsRemaining === 'number') {
+            setFreeGenerationsRemaining(data.freeGenerationsRemaining);
+          }
+          if (typeof data.paidCredits === 'number') {
+            setPaidCredits(data.paidCredits);
+          }
+        } catch (err) {
+          console.error('Erreur lors de la récupération du statut utilisateur:', err);
+        }
+      } else {
+        setPaidCredits(getPaidCredits());
+      }
     };
 
     refreshUsageState();
@@ -59,14 +72,14 @@ export function GeneratorForm() {
     return () => {
       window.removeEventListener('credits-updated', handleCreditsUpdated);
     };
-  }, []);
+  }, [session?.user?.email]);
 
   useEffect(() => {
-    if (status !== 'authenticated') {
+    if (status !== 'authenticated' || !session?.user?.name) {
       return;
     }
 
-    const sessionFullName = session?.user?.name?.trim() || '';
+    const sessionFullName = session.user.name.trim();
     if (!sessionFullName) {
       return;
     }
@@ -75,7 +88,6 @@ export function GeneratorForm() {
       if (prev.fullName.trim()) {
         return prev;
       }
-
       return {
         ...prev,
         fullName: sessionFullName,
@@ -83,37 +95,11 @@ export function GeneratorForm() {
     });
   }, [session?.user?.name, status]);
 
-  useEffect(() => {
-    if (status !== 'authenticated') {
-      return;
-    }
-
-    const syncCreditsFromServer = async () => {
-      try {
-        const response = await fetch('/api/account', { method: 'GET' });
-        const data = (await response.json()) as {
-          account?: { credits: number };
-        };
-
-        if (response.ok && data.account) {
-          const serverCredits = Math.max(0, Number(data.account.credits) || 0);
-          setPaidCredits(serverCredits);
-          window.dispatchEvent(new Event('credits-updated'));
-        }
-      } catch {
-        // Silencieux en cas d'erreur, on garde le localStorage
-      }
-    };
-
-    void syncCreditsFromServer();
-  }, [status]);
-
   const updateField = (key: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const freeLeft = Math.max(0, FREE_GENERATIONS - usedGenerations);
-  const canGenerate = freeLeft > 0 || paidCredits > 0;
+  const canGenerate = freeGenerationsRemaining > 0 || paidCredits > 0;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -128,6 +114,7 @@ export function GeneratorForm() {
 
     if (!canGenerate) {
       setError('Votre essai gratuit est utilisé. Achetez des crédits ci-dessous.');
+      router.push('/pricing');
       return;
     }
 
@@ -148,14 +135,19 @@ export function GeneratorForm() {
         throw new Error(data.error || 'Impossible de générer le courrier.');
       }
 
-      // Mettre à jour les crédits depuis la réponse serveur si connecté
       if (typeof data.remainingCredits === 'number') {
         setPaidCredits(data.remainingCredits);
         window.dispatchEvent(new Event('credits-updated'));
-      } else if (freeLeft > 0) {
-        // Essai gratuit utilisé localement
-        const nextUsed = incrementUsedGenerations();
-        setUsedGenerations(nextUsed);
+      } else if (paidCredits > 0) {
+        const nextCredits = consumePaidCredit();
+        setPaidCredits(nextCredits);
+        addCreditHistoryEntry({
+          type: 'consume',
+          credits: 1,
+          source: 'generation',
+          label: 'Génération d\'une lettre',
+        });
+        window.dispatchEvent(new Event('credits-updated'));
       }
 
       sessionStorage.setItem('generated-letter', data.letter);
@@ -175,21 +167,21 @@ export function GeneratorForm() {
       className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* <div>
+        <div>
           <h2 className="text-2xl font-bold text-slate-900">
             Générateur de courrier
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            1 essai gratuit, puis paiement à l&apos;unité.
+            1 essai gratuit par compte, puis paiement à l&apos;unité.
           </p>
-        </div> */}
+        </div>
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
           {!mounted
             ? 'Chargement...'
-            : freeLeft > 0
-              ? `Essais gratuits restants : ${freeLeft}`
-              : `${paidCredits} crédits disponibles`}
+            : freeGenerationsRemaining > 0
+              ? `Générations gratuites : ${freeGenerationsRemaining}`
+              : `Crédits : ${paidCredits}`}
         </span>
       </div>
 
@@ -210,7 +202,7 @@ export function GeneratorForm() {
         </label>
 
         <label className="space-y-2 text-sm font-medium text-slate-700">
-          Ton du courrier
+          Ton
           <select
             value={form.tone}
             onChange={(e) => updateField('tone', e.target.value)}

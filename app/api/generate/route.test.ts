@@ -2,8 +2,55 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const originalEnv = { ...process.env };
 
-async function loadRouteModule() {
+type MockSession = { user: { email: string; name?: string } } | null;
+
+async function loadRouteModule(session: MockSession = null) {
   vi.resetModules();
+
+  vi.doMock('next/server', () => ({
+    NextResponse: {
+      json: (data: unknown, init?: { status?: number }) =>
+        new Response(JSON.stringify(data), {
+          status: init?.status ?? 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    },
+  }));
+
+  vi.doMock('next-auth', () => ({
+    getServerSession: vi.fn().mockResolvedValue(session),
+  }));
+
+  vi.doMock('@/lib/auth', () => ({ authOptions: {} }));
+
+  vi.doMock('@prisma/client', () => ({
+    GenerationBillingType: { FREE: 'FREE', CREDIT: 'CREDIT' },
+    CreditLedgerEntryType: { CONSUMPTION: 'CONSUMPTION' },
+  }));
+
+  vi.doMock('@/lib/prisma', () => ({
+    prisma: {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ freeGenerationsUsed: 0 }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      creditBalance: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      $transaction: vi
+        .fn()
+        .mockImplementation(async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
+          fn({
+            letterGeneration: { create: vi.fn().mockResolvedValue({}) },
+            creditBalance: { update: vi.fn().mockResolvedValue({}) },
+            creditLedgerEntry: { create: vi.fn().mockResolvedValue({}) },
+            user: { update: vi.fn().mockResolvedValue({}) },
+          })
+        ),
+    },
+  }));
+
   return import('@/app/api/generate/route');
 }
 
@@ -15,6 +62,7 @@ describe('POST /api/generate', () => {
     delete process.env.OPENAI_API_KEY;
     delete process.env.OPENAPI_URL;
     delete process.env.OPENAI_MODEL;
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
@@ -86,27 +134,24 @@ describe('POST /api/generate', () => {
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.OPENAPI_URL = 'https://example.test/v1/responses';
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  letter: 'Lettre générée',
-                  emailVersion: 'Email généré',
-                }),
-              },
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                letter: 'Lettre générée',
+                emailVersion: 'Email généré',
+              }),
             },
-          ],
-        }),
-      })
-    );
+          },
+        ],
+      }),
+    });
 
-    const { POST } = await loadRouteModule();
+    const { POST } = await loadRouteModule({ user: { email: 'rl@test.com', name: 'Test RL' } });
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const request = new Request('http://localhost/api/generate', {
@@ -159,9 +204,9 @@ describe('POST /api/generate', () => {
       }),
     });
 
-    vi.stubGlobal('fetch', fetchMock);
+    global.fetch = fetchMock;
 
-    const { POST } = await loadRouteModule();
+    const { POST } = await loadRouteModule({ user: { email: 'success@test.com', name: 'User' } });
     const request = new Request('http://localhost/api/generate', {
       method: 'POST',
       headers: {
@@ -180,13 +225,11 @@ describe('POST /api/generate', () => {
     });
 
     const response = await POST(request);
-    const data = (await response.json()) as { letter: string; emailVersion: string };
+    const data = (await response.json()) as { letter: string; emailVersion: string; billingType: string; remainingCredits: number };
 
     expect(response.status).toBe(200);
-    expect(data).toEqual({
-      letter: 'Lettre finale',
-      emailVersion: 'Email final',
-    });
+    expect(data.letter).toBe('Lettre finale');
+    expect(data.emailVersion).toBe('Email final');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -194,26 +237,23 @@ describe('POST /api/generate', () => {
     process.env.OPENAI_API_KEY = 'test-key';
     process.env.OPENAPI_URL = 'https://example.test/v1/responses';
 
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  emailVersion: 'Email sans lettre',
-                }),
-              },
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                emailVersion: 'Email sans lettre',
+              }),
             },
-          ],
-        }),
-      })
-    );
+          },
+        ],
+      }),
+    });
 
-    const { POST } = await loadRouteModule();
+    const { POST } = await loadRouteModule({ user: { email: 'err@test.com', name: 'Err' } });
     const request = new Request('http://localhost/api/generate', {
       method: 'POST',
       headers: {

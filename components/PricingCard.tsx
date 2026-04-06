@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { getAccountProfile } from '@/lib/storage';
 
@@ -14,9 +15,11 @@ type Pack = {
 
 type PricingCardProps = {
   variant?: 'default' | 'home';
+  enableCheckout?: boolean;
 };
 
-export function PricingCard({ variant = 'default' }: PricingCardProps) {
+export function PricingCard({ variant = 'default', enableCheckout = true }: PricingCardProps) {
+  const router = useRouter();
   const { data: session } = useSession();
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [loadingPacks, setLoadingPacks] = useState(true);
@@ -74,14 +77,23 @@ export function PricingCard({ variant = 'default' }: PricingCardProps) {
   }, [sessionEmail, sessionFirstname, sessionLastname]);
 
   const helperText = useMemo(() => {
+    if (!session?.user?.email) {
+      return 'Connectez-vous pour acheter un pack et rattacher les crédits à votre compte.';
+    }
+
     if (account.email) {
       return `Les crédits achetés seront rattachés au compte ${account.email}.`;
     }
 
     return 'Ajoutez votre email dans votre compte avant paiement pour retrouver automatiquement vos crédits.';
-  }, [account.email]);
+  }, [account.email, session?.user?.email]);
 
   const startCheckout = async (packId: string) => {
+    if (!session?.user?.email) {
+      router.push('/auth/login?callbackUrl=/pricing');
+      return;
+    }
+
     try {
       setLoadingPackId(packId);
       const response = await fetch('/api/create-checkout-session', {

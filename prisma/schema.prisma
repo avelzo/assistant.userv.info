@@ -21,6 +21,7 @@ model User {
   creditBalance CreditBalance?
   creditEntries CreditLedgerEntry[]
   generations   LetterGeneration[]
+  freeGenerationsUsed Int         @default(0)
 }
 
 model PasswordResetToken {

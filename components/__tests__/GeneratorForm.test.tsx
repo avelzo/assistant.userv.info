@@ -36,10 +36,9 @@ vi.mock('@/lib/storage', () => ({
   addCreditHistoryEntry: vi.fn(() => []),
 }));
 
-const getUsedGenerationsMock = vi.mocked(storage.getUsedGenerations);
 const getPaidCreditsMock = vi.mocked(storage.getPaidCredits);
-const incrementUsedGenerationsMock = vi.mocked(storage.incrementUsedGenerations);
 const consumePaidCreditMock = vi.mocked(storage.consumePaidCredit);
+const addCreditHistoryEntryMock = vi.mocked(storage.addCreditHistoryEntry);
 
 describe('GeneratorForm', () => {
   beforeEach(() => {
@@ -47,10 +46,9 @@ describe('GeneratorForm', () => {
     sessionMock = null;
     sessionStatusMock = 'unauthenticated';
 
-    getUsedGenerationsMock.mockReturnValue(0);
     getPaidCreditsMock.mockReturnValue(0);
-    incrementUsedGenerationsMock.mockReturnValue(1);
     consumePaidCreditMock.mockReturnValue(0);
+    addCreditHistoryEntryMock.mockReturnValue([]);
 
     Object.defineProperty(window, 'sessionStorage', {
       value: {
@@ -92,6 +90,11 @@ describe('GeneratorForm', () => {
     };
     sessionStatusMock = 'authenticated';
 
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ freeGenerationsRemaining: 1, paidCredits: 0 }),
+    });
+
     render(<GeneratorForm />);
 
     const fullNameInput = await screen.findByDisplayValue('Laurent Hunaut');
@@ -99,6 +102,8 @@ describe('GeneratorForm', () => {
   });
 
   it('soumet le formulaire et redirige vers /result', async () => {
+    getPaidCreditsMock.mockReturnValue(1);
+
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -140,7 +145,7 @@ describe('GeneratorForm', () => {
       'generated-email',
       'Voici votre email'
     );
-    expect(incrementUsedGenerationsMock).toHaveBeenCalledTimes(1);
+    expect(consumePaidCreditMock).toHaveBeenCalledTimes(1);
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith('/result');
@@ -148,6 +153,8 @@ describe('GeneratorForm', () => {
   });
 
   it('affiche une erreur API si la génération échoue', async () => {
+    getPaidCreditsMock.mockReturnValue(1);
+
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: false,
       json: async () => ({
@@ -175,8 +182,6 @@ describe('GeneratorForm', () => {
   });
 
   it('bloque la génération quand l’essai gratuit est épuisé', async () => {
-    getUsedGenerationsMock.mockReturnValue(1);
-
     render(<GeneratorForm />);
 
     expect(
@@ -196,11 +201,11 @@ describe('GeneratorForm', () => {
     expect(
       await screen.findByText(/achetez des crédits ci-dessous/i)
     ).toBeInTheDocument();
+    expect(pushMock).toHaveBeenCalledWith('/pricing');
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it('consomme un crédit quand l’essai gratuit est épuisé', async () => {
-    getUsedGenerationsMock.mockReturnValue(1);
+  it('consomme un crédit local et journalise l’action côté invité', async () => {
     getPaidCreditsMock.mockReturnValue(1);
     consumePaidCreditMock.mockReturnValue(0);
 
@@ -228,7 +233,62 @@ describe('GeneratorForm', () => {
       expect(pushMock).toHaveBeenCalledWith('/result');
     });
 
-    expect(incrementUsedGenerationsMock).not.toHaveBeenCalled();
     expect(consumePaidCreditMock).toHaveBeenCalledTimes(1);
+    expect(addCreditHistoryEntryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'consume',
+        credits: 1,
+        source: 'generation',
+      })
+    );
+  });
+
+  it('utilise remainingCredits renvoyé par l’API sans consommer localement', async () => {
+    sessionMock = {
+      user: {
+        name: 'Laurent Hunaut',
+        email: 'laurent@example.com',
+      },
+    };
+    sessionStatusMock = 'authenticated';
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ freeGenerationsRemaining: 0, paidCredits: 2 }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          letter: 'Lettre générée',
+          emailVersion: 'Email généré',
+          remainingCredits: 1,
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ freeGenerationsRemaining: 0, paidCredits: 1 }),
+      });
+
+    render(<GeneratorForm />);
+
+    await screen.findByText(/crédits : 2/i);
+
+    fireEvent.change(screen.getByPlaceholderText(/expliquez le contexte/i), {
+      target: { value: 'Je souhaite faire une relance.' },
+    });
+
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: /générer ma lettre/i,
+      })
+    );
+
+    await waitFor(() => {
+      expect(pushMock).toHaveBeenCalledWith('/result');
+    });
+
+    expect(consumePaidCreditMock).not.toHaveBeenCalled();
+    expect(addCreditHistoryEntryMock).not.toHaveBeenCalled();
   });
 });

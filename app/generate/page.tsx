@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { GeneratorForm } from '@/components/GeneratorForm';
 import { Header } from '@/components/Header';
 import { PricingCard } from '@/components/PricingCard';
@@ -24,7 +27,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function GeneratePage() {
+export default async function GeneratePage() {
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect('/auth/login');
+  }
+
   return (
     <main className="min-h-screen bg-slate-50">
       <Header />

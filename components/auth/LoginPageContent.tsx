@@ -2,15 +2,21 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const callbackUrl = searchParams.get('callbackUrl') || '/';
+
+  const registerHref = callbackUrl
+    ? `/auth/register?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : '/auth/register';
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,7 +34,7 @@ export function LoginPageContent() {
     if (result?.error) {
       setError('Email ou mot de passe incorrect.');
     } else {
-      router.push('/');
+      router.push(callbackUrl);
       router.refresh();
     }
   }
@@ -93,7 +99,7 @@ export function LoginPageContent() {
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Vous n'avez pas encore de compte ?{' '}
-        <Link href="/auth/register" className="font-medium text-indigo-600 hover:underline">
+        <Link href={registerHref} className="font-medium text-indigo-600 hover:underline">
           Créer un compte
         </Link>
       </p>

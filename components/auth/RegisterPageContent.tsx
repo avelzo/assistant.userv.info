@@ -1,14 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export function RegisterPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({ email: '', password: '', firstname: '', lastname: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const callbackUrl = searchParams.get('callbackUrl') || '/pricing';
+
+  const loginHref = callbackUrl
+    ? `/auth/login?callbackUrl=${encodeURIComponent(callbackUrl)}`
+    : '/auth/login';
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -33,7 +39,7 @@ export function RegisterPageContent() {
       return;
     }
 
-    router.push('/auth/login?registered=1');
+    router.push(`/auth/login?registered=1&callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
 
   return (
@@ -127,7 +133,7 @@ export function RegisterPageContent() {
 
       <p className="mt-6 text-center text-sm text-slate-500">
         Vous avez déjà un compte ?{' '}
-        <Link href="/auth/login" className="font-medium text-indigo-600 hover:underline">
+        <Link href={loginHref} className="font-medium text-indigo-600 hover:underline">
           Se connecter
         </Link>
       </p>
