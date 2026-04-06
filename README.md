@@ -55,7 +55,7 @@ DATABASE_NAME=database_name
 DATABASE_PORT=27017
 DATABASE_USER="username"
 DATABASE_USERPASS="userPasswd"
-# Pour Prisma (à définir explicitement dans .env.local)
+# Pour Prisma (à définir explicitement dans .env)
 # DATABASE_URL=mongodb://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?directConnection=true&ssl=false&authSource=admin
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=change-me

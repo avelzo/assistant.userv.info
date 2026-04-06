@@ -11,11 +11,14 @@ import {
   getPaidCredits,
   incrementUsedGenerations,
   consumePaidCredit,
+  setPaidCredits,
 } from '@/lib/storage';
 
 type GenerateResponse = {
   letter: string;
   emailVersion: string;
+  billingType?: string;
+  remainingCredits?: number;
 };
 
 const initialState = {
@@ -80,6 +83,31 @@ export function GeneratorForm() {
     });
   }, [session?.user?.name, status]);
 
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    const syncCreditsFromServer = async () => {
+      try {
+        const response = await fetch('/api/account', { method: 'GET' });
+        const data = (await response.json()) as {
+          account?: { credits: number };
+        };
+
+        if (response.ok && data.account) {
+          const serverCredits = Math.max(0, Number(data.account.credits) || 0);
+          setPaidCredits(serverCredits);
+          window.dispatchEvent(new Event('credits-updated'));
+        }
+      } catch {
+        // Silencieux en cas d'erreur, on garde le localStorage
+      }
+    };
+
+    void syncCreditsFromServer();
+  }, [status]);
+
   const updateField = (key: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -120,19 +148,14 @@ export function GeneratorForm() {
         throw new Error(data.error || 'Impossible de générer le courrier.');
       }
 
-      if (freeLeft > 0) {
+      // Mettre à jour les crédits depuis la réponse serveur si connecté
+      if (typeof data.remainingCredits === 'number') {
+        setPaidCredits(data.remainingCredits);
+        window.dispatchEvent(new Event('credits-updated'));
+      } else if (freeLeft > 0) {
+        // Essai gratuit utilisé localement
         const nextUsed = incrementUsedGenerations();
         setUsedGenerations(nextUsed);
-      } else if (paidCredits > 0) {
-        const nextCredits = consumePaidCredit();
-        setPaidCredits(nextCredits);
-        addCreditHistoryEntry({
-          type: 'consume',
-          credits: 1,
-          source: 'generation',
-          label: 'Génération d\'une lettre',
-        });
-        window.dispatchEvent(new Event('credits-updated'));
       }
 
       sessionStorage.setItem('generated-letter', data.letter);
@@ -166,7 +189,7 @@ export function GeneratorForm() {
             ? 'Chargement...'
             : freeLeft > 0
               ? `Essais gratuits restants : ${freeLeft}`
-              : `Crédits : ${paidCredits}`}
+              : `${paidCredits} crédits disponibles`}
         </span>
       </div>
 

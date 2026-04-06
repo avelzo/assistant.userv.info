@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { getCreditHistory, getPaidCredits, type CreditHistoryEntry } from '@/lib/storage';
+import { useSession } from 'next-auth/react';
+import {
+  getCreditHistory,
+  getPaidCredits,
+  setCreditHistory,
+  setPaidCredits,
+  type CreditHistoryEntry,
+} from '@/lib/storage';
 
 function formatDate(value: string): string {
   const parsed = new Date(value);
@@ -16,25 +23,63 @@ function formatDate(value: string): string {
   }).format(parsed);
 }
 
+type AccountSummaryResponse = {
+  account?: {
+    credits: number;
+  };
+  history?: CreditHistoryEntry[];
+};
+
 export function CreditHistoryCard() {
+  const { status } = useSession();
   const [mounted, setMounted] = useState(false);
-  const [paidCredits, setPaidCredits] = useState(0);
-  const [history, setHistory] = useState<CreditHistoryEntry[]>([]);
+  const [paidCredits, setPaidCreditsState] = useState(0);
+  const [history, setHistoryState] = useState<CreditHistoryEntry[]>([]);
 
   useEffect(() => {
-    const refresh = () => {
-      setPaidCredits(getPaidCredits());
-      setHistory(getCreditHistory());
+    const refreshFromLocal = () => {
+      setPaidCreditsState(getPaidCredits());
+      setHistoryState(getCreditHistory());
     };
 
-    refresh();
-    window.addEventListener('credits-updated', refresh);
+    const syncFromServer = async () => {
+      if (status !== 'authenticated') {
+        refreshFromLocal();
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/account', { method: 'GET' });
+        const data = (await response.json()) as AccountSummaryResponse;
+
+        if (!response.ok || !data.account) {
+          refreshFromLocal();
+          return;
+        }
+
+        const credits = Math.max(0, Number(data.account.credits) || 0);
+        setPaidCredits(credits);
+        setPaidCreditsState(credits);
+
+        if (Array.isArray(data.history)) {
+          const nextHistory = setCreditHistory(data.history);
+          setHistoryState(nextHistory);
+        } else {
+          setHistoryState(getCreditHistory());
+        }
+      } catch {
+        refreshFromLocal();
+      }
+    };
+
+    void syncFromServer();
+    window.addEventListener('credits-updated', refreshFromLocal);
     setMounted(true);
 
     return () => {
-      window.removeEventListener('credits-updated', refresh);
+      window.removeEventListener('credits-updated', refreshFromLocal);
     };
-  }, []);
+  }, [status]);
 
   const recentEntries = useMemo(() => history.slice(0, 8), [history]);
 

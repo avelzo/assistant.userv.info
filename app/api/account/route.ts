@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { CreditLedgerEntrySource } from '@prisma/client';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 type AccountBody = {
@@ -8,8 +11,54 @@ type AccountBody = {
   previousEmail?: string;
 };
 
-function normalizeEmail(value?: string): string {
+function normalizeEmail(value?: string | null): string {
   return (value || '').trim().toLowerCase();
+}
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+    const email = normalizeEmail(session?.user?.email);
+
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Vous devez être connecté pour consulter votre compte.' },
+        { status: 401 }
+      );
+    }
+
+    const [user, balance, ledgerEntries] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      prisma.creditBalance.findUnique({ where: { email } }),
+      prisma.creditLedgerEntry.findMany({
+        where: { accountEmail: email },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+      }),
+    ]);
+
+    const history = ledgerEntries.map((entry) => ({
+      id: entry.id,
+      type: entry.delta >= 0 ? 'purchase' : 'consume',
+      credits: Math.abs(entry.delta),
+      source: entry.source === CreditLedgerEntrySource.STRIPE ? 'stripe' : 'generation',
+      label: entry.label,
+      createdAt: entry.createdAt.toISOString(),
+    }));
+
+    return NextResponse.json({
+      account: {
+        email,
+        firstname: user?.firstname || '',
+        lastname: user?.lastname || '',
+        credits: balance?.credits ?? 0,
+      },
+      history,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur inattendue.';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

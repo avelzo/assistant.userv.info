@@ -178,6 +178,25 @@ export function getCreditHistory(): CreditHistoryEntry[] {
   }
 }
 
+export function setCreditHistory(entries: CreditHistoryEntry[]): CreditHistoryEntry[] {
+  if (typeof window === 'undefined') return [];
+
+  const safeEntries = entries
+    .filter((entry) =>
+      entry &&
+      typeof entry.id === 'string' &&
+      (entry.type === 'purchase' || entry.type === 'consume') &&
+      typeof entry.credits === 'number' &&
+      (entry.source === 'stripe' || entry.source === 'generation') &&
+      typeof entry.label === 'string' &&
+      typeof entry.createdAt === 'string'
+    )
+    .slice(0, 50);
+
+  window.localStorage.setItem(CREDIT_HISTORY_KEY, JSON.stringify(safeEntries));
+  return safeEntries;
+}
+
 export function clearStorageOnSignOut(): void {
   if (typeof window === 'undefined') return;
 

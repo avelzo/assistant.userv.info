@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Header } from '@/components/Header';
 import { AccountCard } from '@/components/AccountCard';
 import { CreditHistoryCard } from '@/components/CreditHistoryCard';
+import { ChangePasswordCard } from '@/components/ChangePasswordCard';
 
 export const metadata: Metadata = {
   title: 'Mon compte',
@@ -29,6 +30,7 @@ export default function AccountPage() {
           </p>
         </div>
         <AccountCard />
+        <ChangePasswordCard />
         <CreditHistoryCard />
       </section>
     </main>

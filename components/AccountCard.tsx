@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getAccountProfile, saveAccountProfile } from '@/lib/storage';
+import { useSession } from 'next-auth/react';
+import {
+  getAccountProfile,
+  saveAccountProfile,
+  setCreditHistory,
+  setPaidCredits,
+  type CreditHistoryEntry,
+} from '@/lib/storage';
 
 type AccountResponse = {
   account?: {
@@ -10,10 +17,12 @@ type AccountResponse = {
     lastname: string;
     credits: number;
   };
+  history?: CreditHistoryEntry[];
   error?: string;
 };
 
 export function AccountCard() {
+  const { status } = useSession();
   const [firstname, setFirstname] = useState('');
   const [lastname, setLastname] = useState('');
   const [email, setEmail] = useState('');
@@ -29,6 +38,46 @@ export function AccountCard() {
     setEmail(profile.email);
     setPreviousEmail(profile.email);
   }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated') {
+      return;
+    }
+
+    const hydrateAccountFromServer = async () => {
+      try {
+        const response = await fetch('/api/account', { method: 'GET' });
+        const data = (await response.json()) as AccountResponse;
+
+        if (!response.ok || !data.account) {
+          return;
+        }
+
+        saveAccountProfile({
+          firstname: data.account.firstname,
+          lastname: data.account.lastname,
+          email: data.account.email,
+        });
+
+        setFirstname(data.account.firstname);
+        setLastname(data.account.lastname);
+        setEmail(data.account.email);
+        setPreviousEmail(data.account.email);
+        setCredits(data.account.credits);
+        setPaidCredits(data.account.credits);
+
+        if (Array.isArray(data.history)) {
+          setCreditHistory(data.history);
+        }
+
+        window.dispatchEvent(new Event('credits-updated'));
+      } catch {
+        // La page continue avec l'état local si la synchro échoue.
+      }
+    };
+
+    void hydrateAccountFromServer();
+  }, [status]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -72,6 +121,11 @@ export function AccountCard() {
       setEmail(data.account.email);
       setPreviousEmail(data.account.email);
       setCredits(data.account.credits);
+      setPaidCredits(data.account.credits);
+      if (Array.isArray(data.history)) {
+        setCreditHistory(data.history);
+      }
+      window.dispatchEvent(new Event('credits-updated'));
       setMessage('Compte enregistré. Vos crédits et informations de paiement sont maintenant associés à cet email.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Erreur inconnue.');
