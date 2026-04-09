@@ -112,7 +112,22 @@ export async function POST(request: Request) {
         select: { freeGenerationsUsed: true },
       });
 
-      const freeGenerationsUsed = user?.freeGenerationsUsed ?? 0;
+      const historicalFreeGenerations = await prisma.letterGeneration.count({
+        where: {
+          accountEmail: email,
+          billingType: GenerationBillingType.FREE,
+        },
+      });
+
+      const recordedFreeGenerationsUsed = user?.freeGenerationsUsed ?? 0;
+      const freeGenerationsUsed = Math.max(recordedFreeGenerationsUsed, historicalFreeGenerations);
+
+      if (user && historicalFreeGenerations > recordedFreeGenerationsUsed) {
+        await prisma.user.update({
+          where: { email },
+          data: { freeGenerationsUsed: historicalFreeGenerations },
+        });
+      }
 
       if (freeGenerationsUsed >= maxFreeGenerations) {
         // Essai gratuit déjà utilisé, vérifier crédits payants
@@ -244,7 +259,7 @@ export async function POST(request: Request) {
 
     // Retourner la génération + crédits restants
     let remainingCredits = 0;
-    if (email && billingType === GenerationBillingType.CREDIT) {
+    if (email) {
       const updatedBalance = await prisma.creditBalance.findUnique({ where: { email } });
       remainingCredits = updatedBalance?.credits ?? 0;
     }

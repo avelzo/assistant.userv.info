@@ -27,13 +27,18 @@ export async function GET() {
       );
     }
 
-    const [user, balance, ledgerEntries] = await Promise.all([
+    const [user, balance, ledgerEntries, letterGenerations] = await Promise.all([
       prisma.user.findUnique({ where: { email } }),
       prisma.creditBalance.findUnique({ where: { email } }),
       prisma.creditLedgerEntry.findMany({
         where: { accountEmail: email },
         orderBy: { createdAt: 'desc' },
         take: 30,
+      }),
+      prisma.letterGeneration.findMany({
+        where: { accountEmail: email },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
       }),
     ]);
 
@@ -46,6 +51,17 @@ export async function GET() {
       createdAt: entry.createdAt.toISOString(),
     }));
 
+    const generations = letterGenerations.map((generation) => ({
+      id: generation.id,
+      category: generation.category,
+      recipient: generation.recipient || '',
+      subject: generation.subject || '',
+      detailsPreview: generation.details.trim().slice(0, 140),
+      letter: generation.letter,
+      emailVersion: generation.emailVersion || '',
+      createdAt: generation.createdAt.toISOString(),
+    }));
+
     return NextResponse.json({
       account: {
         email,
@@ -54,6 +70,7 @@ export async function GET() {
         credits: balance?.credits ?? 0,
       },
       history,
+      generations,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur inattendue.';

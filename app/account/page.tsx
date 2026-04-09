@@ -3,6 +3,7 @@ import { Header } from '@/components/Header';
 import { AccountCard } from '@/components/AccountCard';
 import { CreditHistoryCard } from '@/components/CreditHistoryCard';
 import { ChangePasswordCard } from '@/components/ChangePasswordCard';
+import { LetterHistoryCard } from '@/components/LetterHistoryCard';
 
 export const metadata: Metadata = {
   title: 'Mon compte',
@@ -32,6 +33,7 @@ export default function AccountPage() {
         <AccountCard />
         <ChangePasswordCard />
         <CreditHistoryCard />
+        <LetterHistoryCard />
       </section>
     </main>
   );

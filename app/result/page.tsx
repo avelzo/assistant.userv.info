@@ -1,13 +1,28 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ResultCard } from '@/components/ResultCard';
 
 export default function ResultPage() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [letter, setLetter] = useState('');
   const [emailVersion, setEmailVersion] = useState('');
+
+  const handleBack = () => {
+    if (typeof window === 'undefined') {
+      router.push('/generate');
+      return;
+    }
+
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push('/generate');
+  };
 
   useEffect(() => {
     setLetter(sessionStorage.getItem('generated-letter') || '');
@@ -28,12 +43,13 @@ export default function ResultPage() {
             </h1>
           </div>
 
-          <Link
-            href="/generate"
+          <button
+            type="button"
+            onClick={handleBack}
             className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
           >
             Retour
-          </Link>
+          </button>
         </div>
 
         {!mounted ? (
