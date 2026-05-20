@@ -53,13 +53,13 @@ export default function ResultPage() {
         </div>
 
         {!mounted ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <p className="text-slate-600">Chargement du résultat...</p>
           </div>
         ) : letter ? (
           <ResultCard content={letter} emailVersion={emailVersion} />
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <p className="text-slate-600">
               Aucun contenu généré pour le moment. Retournez à l&apos;accueil pour créer une lettre.
             </p>

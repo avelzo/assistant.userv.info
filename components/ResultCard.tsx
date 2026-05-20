@@ -14,7 +14,7 @@ export function ResultCard({ content, emailVersion }: ResultCardProps) {
   };
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Votre lettre</h3>

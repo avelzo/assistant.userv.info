@@ -36,15 +36,15 @@ export default function HomePage() {
       </section>
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-indigo-950 via-indigo-900 to-violet-900 px-6 py-24 text-center text-white">
+      <section className="relative overflow-hidden bg-linear-to-br from-indigo-950 via-indigo-900 to-violet-900 px-6 py-24 text-center text-white">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(139,92,246,0.3),transparent_70%)]" />
         <div className="relative mx-auto max-w-3xl">
-          <span className="inline-block rounded-full border border-indigo-400/40 bg-indigo-400/10 px-4 py-1.5 text-sm font-medium text-indigo-200 backdrop-blur-sm">
+          <span className="inline-block rounded-full border border-indigo-400/40 bg-indigo-400/10 px-4 py-1.5 text-sm font-medium text-indigo-200 backdrop-blur-xs">
             Propulsé par IA
           </span>
           <h1 className="mt-6 text-5xl font-extrabold leading-tight tracking-tight sm:text-6xl">
             Rédigez vos courriers<br />
-            <span className="bg-gradient-to-r from-violet-300 to-indigo-300 bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-violet-300 to-indigo-300 bg-clip-text text-transparent">
               administratifs en 60 sec
             </span>
           </h1>
@@ -95,7 +95,7 @@ export default function HomePage() {
               desc: 'Export PDF ou copie directe du texte. Utilisable immédiatement, avec suivi de vos crédits dans votre compte.',
             },
           ].map(({ icon, title, desc }) => (
-            <div key={title} className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+            <div key={title} className="rounded-2xl border border-slate-200 bg-white p-8 shadow-xs">
               <span className="text-3xl">{icon}</span>
               <h3 className="mt-4 text-lg font-semibold text-slate-900">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">{desc}</p>
@@ -105,7 +105,7 @@ export default function HomePage() {
       </section>
 
       {/* Pricing */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-100 via-indigo-50 to-blue-100 px-6 py-20">
+      <section className="relative overflow-hidden bg-linear-to-br from-slate-100 via-indigo-50 to-blue-100 px-6 py-20">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(99,102,241,0.18),transparent_45%),radial-gradient(circle_at_80%_80%,rgba(14,165,233,0.18),transparent_45%)]" />
         <div className="relative mx-auto w-full max-w-6xl">
           <PricingCard variant="home" />
@@ -113,7 +113,7 @@ export default function HomePage() {
       </section>
 
       {/* Bottom CTA */}
-      <section className="bg-gradient-to-br from-indigo-950 to-violet-900 px-6 py-20 text-center text-white">
+      <section className="bg-linear-to-br from-indigo-950 to-violet-900 px-6 py-20 text-center text-white">
         <h2 className="text-3xl font-bold">Prêt à rédiger ?</h2>
         <p className="mt-3 text-indigo-200">Votre premier courrier est gratuit.</p>
         <Link

@@ -135,7 +135,7 @@ export function AccountCard() {
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
       <h2 className="text-2xl font-bold text-slate-900">Mon compte</h2>
       <p className="mt-1 text-sm text-slate-500">
         Renseignez les informations de votre compte pour retrouver plus facilement vos paiements et vos crédits.
@@ -148,7 +148,7 @@ export function AccountCard() {
             value={firstname}
             onChange={(event) => setFirstname(event.target.value)}
             placeholder="Ex: Laurent"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
           />
         </label>
 
@@ -158,7 +158,7 @@ export function AccountCard() {
             value={lastname}
             onChange={(event) => setLastname(event.target.value)}
             placeholder="Ex: Hunaut"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
           />
         </label>
 
@@ -169,7 +169,7 @@ export function AccountCard() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="Ex: laurent@email.com"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
           />
         </label>
 

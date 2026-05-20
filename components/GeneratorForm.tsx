@@ -164,7 +164,7 @@ export function GeneratorForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -191,7 +191,7 @@ export function GeneratorForm() {
           <select
             value={form.category}
             onChange={(e) => updateField('category', e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none ring-0 focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden ring-0 focus:border-blue-500"
           >
             {CATEGORIES.map((category) => (
               <option key={category} value={category}>
@@ -206,7 +206,7 @@ export function GeneratorForm() {
           <select
             value={form.tone}
             onChange={(e) => updateField('tone', e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none ring-0 focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden ring-0 focus:border-blue-500"
           >
             {TONES.map((tone) => (
               <option key={tone} value={tone}>
@@ -222,7 +222,7 @@ export function GeneratorForm() {
             value={form.fullName}
             onChange={(e) => updateField('fullName', e.target.value)}
             placeholder="Ex: Laurent Hunaut"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
           />
         </label>
 
@@ -232,7 +232,7 @@ export function GeneratorForm() {
             value={form.recipient}
             onChange={(e) => updateField('recipient', e.target.value)}
             placeholder="Ex: CAF de Paris"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
           />
         </label>
       </div>
@@ -243,7 +243,7 @@ export function GeneratorForm() {
           value={form.subject}
           onChange={(e) => updateField('subject', e.target.value)}
           placeholder="Ex: Demande de réexamen de dossier"
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
         />
       </label>
 
@@ -254,7 +254,7 @@ export function GeneratorForm() {
           onChange={(e) => updateField('details', e.target.value)}
           placeholder="Expliquez le contexte, la demande, les dates utiles, les références de dossier, ce que vous attendez comme réponse..."
           rows={8}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
         />
       </label>
 
@@ -264,7 +264,7 @@ export function GeneratorForm() {
           value={form.attachments}
           onChange={(e) => updateField('attachments', e.target.value)}
           placeholder="Ex: carte d'identité, quittance de loyer, attestation employeur"
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
         />
       </label>
 

@@ -124,7 +124,7 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
   const sectionClassName =
     variant === 'home'
       ? 'p-6 md:p-8'
-      : 'rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-sm';
+      : 'rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-xs';
 
   return (
     <section className={sectionClassName}>
@@ -142,11 +142,11 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
             ? Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={`pack-skeleton-${index}`}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 pt-3 pb-10 shadow-sm w-full"
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 pt-3 pb-10 shadow-xs w-full"
                   aria-hidden="true"
                 >
-                  <div className="h-4 w-full rounded bg-slate-200/90 animate-pulse" />
-                  <div className="mt-3 h-6 w-full rounded bg-slate-200/90 animate-pulse" />
+                  <div className="h-4 w-full rounded-sm bg-slate-200/90 animate-pulse" />
+                  <div className="mt-3 h-6 w-full rounded-sm bg-slate-200/90 animate-pulse" />
                 </div>
               ))
             : null}
@@ -155,7 +155,7 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
               key={pack.id}
               onClick={() => startCheckout(pack.id)}
               disabled={loadingPackId !== null || loadingPacks}
-              className="rounded-2xl border border-slate-200 bg-white px-2 py-2 text-center shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-slate-200 bg-white px-2 py-2 text-center shadow-xs transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="block text-sm font-semibold text-slate-700">{pack.label}</span>
               <span className="mt-2 block text-xl text-slate-500">

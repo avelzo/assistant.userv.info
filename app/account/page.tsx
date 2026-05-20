@@ -23,7 +23,7 @@ export default function AccountPage() {
     <main className="min-h-screen bg-slate-50">
       <Header />
       <section className="mx-auto w-full max-w-3xl space-y-6 px-6 pb-16 pt-8">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs">
           <p className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Compte</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Centralisez vos informations et vos crédits</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">

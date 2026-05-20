@@ -84,7 +84,7 @@ export function LetterHistoryCard() {
   const recentEntries = useMemo(() => entries.slice(0, 12), [entries]);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Historique des lettres</h3>

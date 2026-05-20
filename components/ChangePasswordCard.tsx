@@ -61,7 +61,7 @@ export function ChangePasswordCard() {
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
       <h2 className="text-2xl font-bold text-slate-900">Mot de passe</h2>
       <p className="mt-1 text-sm text-slate-500">
         Modifiez votre mot de passe pour sécuriser votre compte.
@@ -84,7 +84,7 @@ export function ChangePasswordCard() {
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
               placeholder="Votre mot de passe actuel"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
               minLength={8}
               required
             />
@@ -98,7 +98,7 @@ export function ChangePasswordCard() {
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               placeholder="8 caractères minimum"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
               minLength={8}
               required
             />
@@ -112,7 +112,7 @@ export function ChangePasswordCard() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder="Répétez le nouveau mot de passe"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-blue-500"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
               minLength={8}
               required
             />

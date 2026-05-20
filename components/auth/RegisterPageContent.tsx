@@ -62,7 +62,7 @@ export function RegisterPageContent() {
               required
               value={form.firstname}
               onChange={handleChange}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
               placeholder="Jean"
             />
           </div>
@@ -77,7 +77,7 @@ export function RegisterPageContent() {
               autoComplete="family-name"
               value={form.lastname}
               onChange={handleChange}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
               placeholder="Dupont"
             />
           </div>
@@ -94,7 +94,7 @@ export function RegisterPageContent() {
             required
             value={form.email}
             onChange={handleChange}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             placeholder="vous@exemple.fr"
           />
         </div>
@@ -111,7 +111,7 @@ export function RegisterPageContent() {
             minLength={8}
             value={form.password}
             onChange={handleChange}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             placeholder="8 caractères minimum"
           />
         </div>

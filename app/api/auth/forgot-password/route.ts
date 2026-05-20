@@ -10,7 +10,9 @@ export async function POST(req: NextRequest) {
   }
 
   const email = String(body.email).toLowerCase().trim();
+  console.log({ email });
   const user = await prisma.user.findUnique({ where: { email } });
+  console.log({ user });
 
   // Réponse identique que l'utilisateur existe ou non (sécurité)
   if (!user) {
