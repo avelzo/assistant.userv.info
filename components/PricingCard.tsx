@@ -23,23 +23,20 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
   const { data: session } = useSession();
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [loadingPacks, setLoadingPacks] = useState(true);
-  const [account, setAccount] = useState({ firstname: '', lastname: '', email: '' });
   const [packs, setPacks] = useState<Pack[]>([]);
-
   const sessionName = session?.user?.name?.trim() || '';
   const sessionNameParts = sessionName ? sessionName.split(/\s+/) : [];
   const sessionFirstname = sessionNameParts[0] || '';
   const sessionLastname = sessionNameParts.slice(1).join(' ');
   const sessionEmail = session?.user?.email?.trim().toLowerCase() || '';
+  const profile = getAccountProfile();
+  const account = {
+    firstname: profile.firstname || sessionFirstname,
+    lastname: profile.lastname || sessionLastname,
+    email: sessionEmail || profile.email,
+  };
 
   useEffect(() => {
-    const profile = getAccountProfile();
-    setAccount({
-      firstname: profile.firstname || sessionFirstname,
-      lastname: profile.lastname || sessionLastname,
-      email: sessionEmail || profile.email,
-    });
-
     const loadPacks = async () => {
       try {
         const response = await fetch('/api/packs');
@@ -113,7 +110,7 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
         throw new Error(data.error || 'Impossible de démarrer le paiement.');
       }
 
-      window.location.href = data.url;
+      window.location.assign(data.url);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Erreur inconnue.');
     } finally {

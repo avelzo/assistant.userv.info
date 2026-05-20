@@ -10,17 +10,19 @@ import {
   setPaidCredits,
 } from '@/lib/storage';
 
+type Notice = {
+  message: string;
+  variant: 'success' | 'warning' | 'error';
+};
+
 export function PaymentFlag() {
-  const [message, setMessage] = useState('');
-  const [variant, setVariant] = useState<'success' | 'warning' | 'error'>('success');
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
     const claimCredits = async (sessionId: string) => {
       const response = await fetch('/api/credits/claim', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId }),
       });
 
@@ -42,83 +44,102 @@ export function PaymentFlag() {
       return data;
     };
 
-    const params = new URLSearchParams(window.location.search);
-    const payment = params.get('payment');
-    const sessionId = params.get('session_id') || '';
+    void Promise.resolve().then(async () => {
+      const params = new URLSearchParams(window.location.search);
+      const payment = params.get('payment');
+      const sessionId = params.get('session_id') || '';
 
-    if (payment === 'success') {
-      if (!sessionId) {
-        setVariant('warning');
-        setMessage('Paiement validé. Impossible de créditer automatiquement sans identifiant de session.');
+      if (payment === 'cancelled') {
+        setNotice({
+          variant: 'warning',
+          message: "Paiement annulé. Aucun crédit n'a été débité. Vous pouvez reprendre l'achat quand vous voulez.",
+        });
         return;
       }
 
-      const applyClaim = async () => {
-        try {
-          const data = await claimCredits(sessionId);
-          const wasProcessedNow = markCheckoutSessionProcessed(sessionId);
+      if (payment !== 'success') {
+        return;
+      }
 
-          if (data.email) {
-            const currentProfile = getAccountProfile();
-            saveAccountProfile({
-              email: data.email,
-              firstname: data.firstname || currentProfile.firstname,
-              lastname: data.lastname || currentProfile.lastname,
-            });
-          }
+      if (!sessionId) {
+        setNotice({
+          variant: 'warning',
+          message: 'Paiement validé. Impossible de créditer automatiquement sans identifiant de session.',
+        });
+        return;
+      }
 
-          if (typeof data.availableCredits === 'number') {
-            setPaidCredits(data.availableCredits);
-          } else if (data.credited && typeof data.credits === 'number') {
-            addPaidCredits(data.credits);
-          }
+      try {
+        const data = await claimCredits(sessionId);
+        const wasProcessedNow = markCheckoutSessionProcessed(sessionId);
 
-          if (data.credited && wasProcessedNow) {
-            addCreditHistoryEntry({
-              type: 'purchase',
-              credits: Math.max(1, data.credits || 1),
-              source: 'stripe',
-              label: `Achat de ${Math.max(1, data.credits || 1)} crédit${Math.max(1, data.credits || 1) > 1 ? 's' : ''}`,
-            });
-          }
+        if (data.email) {
+          const currentProfile = getAccountProfile();
 
-          window.dispatchEvent(new Event('credits-updated'));
-
-          if (data.alreadyProcessed) {
-            setVariant('success');
-            setMessage(
-              `Paiement déjà enregistré. Votre compte dispose actuellement de ${data.availableCredits ?? 0} crédit${(data.availableCredits ?? 0) > 1 ? 's' : ''}.`
-            );
-            return;
-          }
-
-          setVariant('success');
-          setMessage(
-            `Paiement confirmé. ${Math.max(1, data.credits || 1)} crédit${Math.max(1, data.credits || 1) > 1 ? 's' : ''} ajouté${Math.max(1, data.credits || 1) > 1 ? 's' : ''} à votre compte. Solde actuel : ${data.availableCredits ?? 0}.`
-          );
-        } catch (error) {
-          setVariant('error');
-          setMessage(error instanceof Error ? error.message : 'Erreur inconnue.');
+          saveAccountProfile({
+            email: data.email,
+            firstname: data.firstname || currentProfile.firstname,
+            lastname: data.lastname || currentProfile.lastname,
+          });
         }
-      };
 
-      void applyClaim();
-    }
+        if (typeof data.availableCredits === 'number') {
+          setPaidCredits(data.availableCredits);
+        } else if (data.credited && typeof data.credits === 'number') {
+          addPaidCredits(data.credits);
+        }
 
-    if (payment === 'cancelled') {
-      setVariant('warning');
-      setMessage('Paiement annulé. Aucun crédit n\'a été débité. Vous pouvez reprendre l\'achat quand vous voulez.');
-    }
+        if (data.credited && wasProcessedNow) {
+          const credits = Math.max(1, data.credits || 1);
+
+          addCreditHistoryEntry({
+            type: 'purchase',
+            credits,
+            source: 'stripe',
+            label: `Achat de ${credits} crédit${credits > 1 ? 's' : ''}`,
+          });
+        }
+
+        window.dispatchEvent(new Event('credits-updated'));
+
+        if (data.alreadyProcessed) {
+          const availableCredits = data.availableCredits ?? 0;
+
+          setNotice({
+            variant: 'success',
+            message: `Paiement déjà enregistré. Votre compte dispose actuellement de ${availableCredits} crédit${availableCredits > 1 ? 's' : ''}.`,
+          });
+
+          return;
+        }
+
+        const credits = Math.max(1, data.credits || 1);
+
+        setNotice({
+          variant: 'success',
+          message: `Paiement confirmé. ${credits} crédit${credits > 1 ? 's' : ''} ajouté${credits > 1 ? 's' : ''} à votre compte. Solde actuel : ${data.availableCredits ?? 0}.`,
+        });
+      } catch (error) {
+        setNotice({
+          variant: 'error',
+          message: error instanceof Error ? error.message : 'Erreur inconnue.',
+        });
+      }
+    });
   }, []);
 
-  if (!message) return null;
+  if (!notice) return null;
 
   const toneClass =
-    variant === 'success'
+    notice.variant === 'success'
       ? 'border-green-200 bg-green-50 text-green-800'
-      : variant === 'warning'
+      : notice.variant === 'warning'
         ? 'border-amber-200 bg-amber-50 text-amber-800'
         : 'border-red-200 bg-red-50 text-red-800';
 
-  return <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>{message}</div>;
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-sm ${toneClass}`}>
+      {notice.message}
+    </div>
+  );
 }

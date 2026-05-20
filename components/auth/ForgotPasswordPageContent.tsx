@@ -27,7 +27,7 @@ export function ForgotPasswordPageContent() {
     <>
       <h1 className="mb-2 text-2xl font-bold text-slate-900">Réinitialiser votre mot de passe</h1>
       <p className="mb-6 text-sm text-slate-500">
-        Indiquez l'adresse email de votre compte pour recevoir un lien de réinitialisation.
+        {`Indiquez l'adresse email de votre compte pour recevoir un lien de réinitialisation.`}
       </p>
 
       {status === 'success' ? (

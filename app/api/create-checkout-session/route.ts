@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
     const stripe = new Stripe(stripeKey);
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-
+type CheckoutSessionCreate = NonNullable<Parameters<typeof stripe.checkout.sessions.create>[0]>;
     let body: CreateCheckoutBody = {};
     try {
       body = (await request.json()) as CreateCheckoutBody;
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const customerFirstname = body.firstname?.trim() || splitSessionName.firstname;
     const customerLastname = body.lastname?.trim() || splitSessionName.lastname;
 
-    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
+    const lineItems: CheckoutSessionCreate['line_items'] =
       selectedPack.stripePriceId
         ? [
             {
@@ -88,21 +88,23 @@ export async function POST(request: Request) {
             },
           ];
 
-    const stripeSession = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      success_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/?payment=cancelled`,
-      line_items: lineItems,
-      customer_email: customerEmail,
-      customer_creation: 'always',
-      metadata: {
-        packId: selectedPack.code,
-        credits: String(selectedPack.credits),
-        accountEmail: customerEmail || '',
-        accountFirstname: customerFirstname,
-        accountLastname: customerLastname,
-      },
-    });
+    const checkoutParams: CheckoutSessionCreate = {
+        mode: 'payment',
+        success_url: `${baseUrl}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/?payment=cancelled`,
+        line_items: lineItems,
+        customer_email: customerEmail,
+        customer_creation: 'always',
+        metadata: {
+          packId: selectedPack.code,
+          credits: String(selectedPack.credits),
+          accountEmail: customerEmail || '',
+          accountFirstname: customerFirstname,
+          accountLastname: customerLastname,
+        },
+      };
+
+      const stripeSession = await stripe.checkout.sessions.create(checkoutParams);
 
     return NextResponse.json({ url: stripeSession.url });
   } catch (error) {

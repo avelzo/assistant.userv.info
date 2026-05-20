@@ -23,21 +23,13 @@ type AccountResponse = {
 
 export function AccountCard() {
   const { status } = useSession();
-  const [firstname, setFirstname] = useState('');
-  const [lastname, setLastname] = useState('');
-  const [email, setEmail] = useState('');
-  const [previousEmail, setPreviousEmail] = useState('');
+  const [firstname, setFirstname] = useState(() => getAccountProfile().firstname);
+  const [lastname, setLastname] = useState(() => getAccountProfile().lastname);
+  const [email, setEmail] = useState(() => getAccountProfile().email);
+  const [previousEmail, setPreviousEmail] = useState(() => getAccountProfile().email);
   const [credits, setCredits] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const profile = getAccountProfile();
-    setFirstname(profile.firstname);
-    setLastname(profile.lastname);
-    setEmail(profile.email);
-    setPreviousEmail(profile.email);
-  }, []);
 
   useEffect(() => {
     if (status !== 'authenticated') {

@@ -23,7 +23,7 @@ export default function SettingsPage() {
           <p className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Paramètres</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Gardez la main sur votre expérience</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-            Retrouvez ici les repères utiles autour de votre compte, de vos paiements et du fonctionnement des crédits dans l'application.
+            {`Retrouvez ici les repères utiles autour de votre compte, de vos paiements et du fonctionnement des crédits dans l'application.`}
           </p>
         </div>
 
@@ -31,21 +31,21 @@ export default function SettingsPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="text-lg font-semibold text-slate-900">Compte</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Vérifiez l'email rattaché à votre compte pour retrouver plus facilement vos achats et votre solde.
+              {`Vérifiez l'email rattaché à votre compte pour retrouver plus facilement vos achats et votre solde.`}
             </p>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="text-lg font-semibold text-slate-900">Paiement</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Les paiements ajoutent des crédits à votre compte après validation de la session Stripe.
+              {`Les paiements ajoutent des crédits à votre compte après validation de la session Stripe.`}
             </p>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
             <h2 className="text-lg font-semibold text-slate-900">Crédits</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Les crédits sont utilisés après l'essai gratuit pour générer vos courriers, emails et exports PDF.
+              {`Les crédits sont utilisés après l'essai gratuit pour générer vos courriers, emails et exports PDF.`}
             </p>
           </section>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FREE_GENERATIONS, getUsedGenerations } from '@/lib/storage';
 
 type HeroGenerateLinkProps = {
@@ -9,12 +9,10 @@ type HeroGenerateLinkProps = {
 };
 
 export function HeroGenerateLink({ className }: HeroGenerateLinkProps) {
-  const [hasFreeTrialLeft, setHasFreeTrialLeft] = useState(true);
-
-  useEffect(() => {
+  const [hasFreeTrialLeft] = useState(() => {
     const usedGenerations = getUsedGenerations();
-    setHasFreeTrialLeft(usedGenerations < FREE_GENERATIONS);
-  }, []);
+    return usedGenerations < FREE_GENERATIONS;
+  });
 
   return (
     <Link href="/generate" className={className}>

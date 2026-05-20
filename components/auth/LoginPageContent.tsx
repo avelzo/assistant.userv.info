@@ -98,7 +98,7 @@ export function LoginPageContent() {
       </form>
 
       <p className="mt-6 text-center text-sm text-slate-500">
-        Vous n'avez pas encore de compte ?{' '}
+        {`Vous n'avez pas encore de compte ? `}
         <Link href={registerHref} className="font-medium text-indigo-600 hover:underline">
           Créer un compte
         </Link>

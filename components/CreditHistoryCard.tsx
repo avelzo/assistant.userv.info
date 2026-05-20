@@ -32,9 +32,9 @@ type AccountSummaryResponse = {
 
 export function CreditHistoryCard() {
   const { status } = useSession();
-  const [mounted, setMounted] = useState(false);
-  const [paidCredits, setPaidCreditsState] = useState(0);
-  const [history, setHistoryState] = useState<CreditHistoryEntry[]>([]);
+
+  const [paidCredits, setPaidCreditsState] = useState(() => getPaidCredits());
+  const [history, setHistoryState] = useState<CreditHistoryEntry[]>(() => getCreditHistory());
 
   useEffect(() => {
     const refreshFromLocal = () => {
@@ -44,7 +44,6 @@ export function CreditHistoryCard() {
 
     const syncFromServer = async () => {
       if (status !== 'authenticated') {
-        refreshFromLocal();
         return;
       }
 
@@ -53,7 +52,6 @@ export function CreditHistoryCard() {
         const data = (await response.json()) as AccountSummaryResponse;
 
         if (!response.ok || !data.account) {
-          refreshFromLocal();
           return;
         }
 
@@ -64,8 +62,6 @@ export function CreditHistoryCard() {
         if (Array.isArray(data.history)) {
           const nextHistory = setCreditHistory(data.history);
           setHistoryState(nextHistory);
-        } else {
-          setHistoryState(getCreditHistory());
         }
       } catch {
         refreshFromLocal();
@@ -73,8 +69,8 @@ export function CreditHistoryCard() {
     };
 
     void syncFromServer();
+
     window.addEventListener('credits-updated', refreshFromLocal);
-    setMounted(true);
 
     return () => {
       window.removeEventListener('credits-updated', refreshFromLocal);
@@ -89,12 +85,12 @@ export function CreditHistoryCard() {
         <div>
           <h3 className="text-lg font-semibold text-slate-900">Historique de crédits</h3>
           <p className="mt-1 text-sm text-slate-500">
-            Retrouvez vos achats et vos utilisations récentes en un coup d'oeil.
+            Retrouvez vos achats et vos utilisations récentes en un coup d&apos;œil.
           </p>
         </div>
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-          {mounted ? `Crédits disponibles : ${paidCredits}` : 'Chargement...'}
+          Crédits disponibles : {paidCredits}
         </span>
       </div>
 

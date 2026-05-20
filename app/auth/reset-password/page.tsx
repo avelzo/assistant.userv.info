@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { ResetPasswordPageContent } from '@/components/auth/ResetPasswordPageContent';
 
 export const metadata: Metadata = {
@@ -15,5 +16,9 @@ export const metadata: Metadata = {
 };
 
 export default function ResetPasswordPage() {
-  return <ResetPasswordPageContent />;
+  return (
+    <Suspense fallback={<div>Chargement...</div>}>
+      <ResetPasswordPageContent />
+    </Suspense>
+  );
 }

@@ -46,7 +46,7 @@ export function ResultCard({ content, emailVersion }: ResultCardProps) {
               onClick={() => handleCopy(emailVersion)}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              Copier l'email
+              {`Copier l'email`}
             </button>
           </div>
           <pre className="whitespace-pre-wrap rounded-xl bg-slate-50 p-4 text-sm leading-6 text-slate-800">

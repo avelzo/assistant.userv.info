@@ -1,14 +1,19 @@
 'use client';
-
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ResultCard } from '@/components/ResultCard';
 
 export default function ResultPage() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [letter, setLetter] = useState('');
-  const [emailVersion, setEmailVersion] = useState('');
+  const [letter] = useState(() => {
+  if (typeof window === 'undefined') return '';
+    return sessionStorage.getItem('generated-letter') || '';
+  });
+
+  const [emailVersion] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return sessionStorage.getItem('generated-email') || '';
+  });
 
   const handleBack = () => {
     if (typeof window === 'undefined') {
@@ -24,11 +29,6 @@ export default function ResultPage() {
     router.push('/generate');
   };
 
-  useEffect(() => {
-    setLetter(sessionStorage.getItem('generated-letter') || '');
-    setEmailVersion(sessionStorage.getItem('generated-email') || '');
-    setMounted(true);
-  }, []);
 
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-10">
@@ -52,11 +52,7 @@ export default function ResultPage() {
           </button>
         </div>
 
-        {!mounted ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-            <p className="text-slate-600">Chargement du résultat...</p>
-          </div>
-        ) : letter ? (
+        {letter ? (
           <ResultCard content={letter} emailVersion={emailVersion} />
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">

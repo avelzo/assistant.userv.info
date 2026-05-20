@@ -53,7 +53,12 @@ export default function HomePage() {
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <HeroGenerateLink className="rounded-xl bg-white px-8 py-4 text-base font-bold text-indigo-900 shadow-lg transition hover:bg-indigo-50" />
-            <p className="text-sm text-indigo-300">1 essai gratuit · compte utile pour suivre vos crédits</p>
+            <a
+              href="/contact"
+              className="rounded-xl border border-white/30 bg-white/10 px-8 py-4 text-base font-semibold text-white transition hover:bg-white/20"
+            >
+              Contact
+            </a>
           </div>
         </div>
       </section>

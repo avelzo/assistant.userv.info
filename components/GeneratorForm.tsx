@@ -30,12 +30,23 @@ const initialState = {
 export function GeneratorForm() {
   const router = useRouter();
   const { data: session, status } = useSession();
-  const [mounted, setMounted] = useState(false);
-  const [form, setForm] = useState(initialState);
+
+  const sessionFullName =
+    status === 'authenticated' && session?.user?.name
+      ? session.user.name.trim()
+      : '';
+
+  const [form, setForm] = useState(() => ({
+    ...initialState,
+    fullName: sessionFullName,
+  }));
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [freeGenerationsRemaining, setFreeGenerationsRemaining] = useState(0);
-  const [paidCredits, setPaidCredits] = useState(0);
+  const [paidCredits, setPaidCredits] = useState(() => getPaidCredits());
+
+  const isSessionLoading = status === 'loading';
 
   useEffect(() => {
     const refreshUsageState = async () => {
@@ -59,41 +70,16 @@ export function GeneratorForm() {
         setPaidCredits(getPaidCredits());
       }
     };
-
     refreshUsageState();
-
     const handleCreditsUpdated = () => {
       refreshUsageState();
     };
-
     window.addEventListener('credits-updated', handleCreditsUpdated);
-    setMounted(true);
-
     return () => {
       window.removeEventListener('credits-updated', handleCreditsUpdated);
     };
   }, [session?.user?.email]);
 
-  useEffect(() => {
-    if (status !== 'authenticated' || !session?.user?.name) {
-      return;
-    }
-
-    const sessionFullName = session.user.name.trim();
-    if (!sessionFullName) {
-      return;
-    }
-
-    setForm((prev) => {
-      if (prev.fullName.trim()) {
-        return prev;
-      }
-      return {
-        ...prev,
-        fullName: sessionFullName,
-      };
-    });
-  }, [session?.user?.name, status]);
 
   const updateField = (key: keyof typeof initialState, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -110,7 +96,7 @@ export function GeneratorForm() {
       return;
     }
 
-    if (!mounted) return;
+    if (isSessionLoading) return;
 
     if (!canGenerate) {
       setError('Votre essai gratuit est utilisé. Achetez des crédits ci-dessous.');
@@ -177,7 +163,7 @@ export function GeneratorForm() {
         </div>
 
         <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-          {!mounted
+          {isSessionLoading
             ? 'Chargement...'
             : freeGenerationsRemaining > 0
               ? `Générations gratuites : ${freeGenerationsRemaining}`
@@ -276,7 +262,7 @@ export function GeneratorForm() {
 
       <button
         type="submit"
-        disabled={loading || !mounted}
+        disabled={loading || isSessionLoading}
         className="w-full rounded-xl bg-slate-900 px-5 py-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? 'Génération en cours...' : 'Générer ma lettre'}
