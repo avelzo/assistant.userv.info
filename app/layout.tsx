@@ -1,8 +1,10 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Providers } from '@/components/Providers';
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+const gaMeasurementId = process.env.NEXT_PUBLIC_GA4_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
@@ -55,6 +57,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr">
       <body>
+        {gaMeasurementId ? (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${gaMeasurementId}`}
+              strategy="afterInteractive"
+            />
+            <Script id="gtag-init" strategy="afterInteractive">
+              {`window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', '${gaMeasurementId}', { page_path: window.location.pathname });`}
+            </Script>
+          </>
+        ) : null}
         <Providers>{children}</Providers>
       </body>
     </html>
