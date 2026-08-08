@@ -26,7 +26,7 @@ export default function OpenGraphImage() {
       >
         <div
           style={{
-            display: 'inline-flex',
+            display: 'flex',
             alignItems: 'center',
             gap: '10px',
             fontSize: '24px',
@@ -46,7 +46,7 @@ export default function OpenGraphImage() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', maxWidth: '860px' }}>
-          <div style={{ fontSize: '72px', lineHeight: 1.03, fontWeight: 800, letterSpacing: '-0.03em' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', fontSize: '72px', lineHeight: 1.03, fontWeight: 800, letterSpacing: '-0.03em' }}>
             Vos courriers administratifs
             <br />
             en 60 sec
