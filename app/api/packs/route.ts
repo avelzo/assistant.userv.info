@@ -1,21 +1,16 @@
 import { NextResponse } from 'next/server';
 import { getCreditPacks } from '@/lib/packs';
+import { paidCreditsForPack } from '@/lib/credits/config';
 
 export async function GET() {
   try {
     const packs = await getCreditPacks();
 
     return NextResponse.json({
-      packs: packs.map((pack: {
-        code: string;
-        label: string;
-        credits: number;
-        priceCents: number;
-        highlighted: boolean;
-      }) => ({
+      packs: packs.map((pack) => ({
         code: pack.code,
         label: pack.label,
-        credits: pack.credits,
+        credits: paidCreditsForPack(pack),
         priceCents: pack.priceCents,
         highlighted: pack.highlighted,
       })),

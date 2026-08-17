@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { fieldClass, primaryButtonClass } from '@/lib/ui/classes';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -50,7 +51,7 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+      <p className="rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">
         Ce lien de réinitialisation est invalide ou manquant.{' '}
         <Link href="/auth/forgot-password" className="underline">
           Demander un nouveau lien
@@ -61,9 +62,9 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="rounded-lg bg-green-50 px-4 py-4 text-sm text-green-800">
-        <p className="font-medium">Mot de passe mis à jour !</p>
-        <p className="mt-1">Vous allez être redirigé vers la connexion…</p>
+      <div className="rounded-xl bg-primary/10 px-4 py-4 text-sm text-primary">
+        <p className="font-medium">Mot de passe mis à jour</p>
+        <p className="mt-1 text-ink">Vous allez être redirigé vers la connexion…</p>
       </div>
     );
   }
@@ -71,7 +72,7 @@ function ResetPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="password" className="mb-1 block text-sm font-medium text-ink">
           Nouveau mot de passe
         </label>
         <input
@@ -82,12 +83,12 @@ function ResetPasswordForm() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          className={fieldClass}
           placeholder="8 caractères minimum"
         />
       </div>
       <div>
-        <label htmlFor="confirm" className="mb-1 block text-sm font-medium text-slate-700">
+        <label htmlFor="confirm" className="mb-1 block text-sm font-medium text-ink">
           Confirmer le mot de passe
         </label>
         <input
@@ -98,22 +99,18 @@ function ResetPasswordForm() {
           minLength={8}
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+          className={fieldClass}
           placeholder="••••••••"
         />
       </div>
 
-      {error && (
-        <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+      {error ? (
+        <p role="alert" className="rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">
           {error}
         </p>
-      )}
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-      >
+      <button type="submit" disabled={loading} className={`w-full ${primaryButtonClass}`}>
         {loading ? 'Mise à jour…' : 'Enregistrer le nouveau mot de passe'}
       </button>
     </form>
@@ -123,15 +120,15 @@ function ResetPasswordForm() {
 export function ResetPasswordPageContent() {
   return (
     <>
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Nouveau mot de passe</h1>
-      <p className="mb-6 text-sm text-slate-500">
+      <h1 className="font-serif text-2xl font-semibold tracking-tight text-ink">Nouveau mot de passe</h1>
+      <p className="mt-2 mb-6 text-sm text-muted">
         Choisissez un nouveau mot de passe pour accéder à nouveau à votre compte.
       </p>
-      <Suspense fallback={<p className="text-sm text-slate-500">Chargement…</p>}>
+      <Suspense fallback={<p className="text-sm text-muted">Chargement…</p>}>
         <ResetPasswordForm />
       </Suspense>
-      <p className="mt-6 text-center text-sm text-slate-500">
-        <Link href="/auth/login" className="font-medium text-indigo-600 hover:underline">
+      <p className="mt-6 text-center text-sm text-muted">
+        <Link href="/auth/login" className="font-medium text-primary hover:underline">
           ← Retour à la connexion
         </Link>
       </p>

@@ -12,8 +12,8 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-vi.mock('next-auth/react', () => ({
-  useSession: () => ({
+vi.mock('@/lib/auth-client', () => ({
+  useAuthSession: () => ({
     status: sessionStatusMock,
   }),
 }));

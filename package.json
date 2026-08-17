@@ -12,23 +12,29 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "seed": "npx prisma db seed"
+    "seed": "npx prisma db seed",
+    "audit:users": "npx tsx scripts/audit-users.ts",
+    "migrate:auth": "npx tsx scripts/migrate-credential-accounts.ts",
+    "migrate:credits": "npx tsx scripts/migrate-credits-v2.ts",
+    "migrate:dossiers": "npx tsx scripts/migrate-letter-generations-to-dossiers.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@better-auth/prisma-adapter": "^1.6.29",
     "@prisma/client": "^6.19.2",
     "bcryptjs": "^3.0.3",
+    "better-auth": "^1.6.29",
     "jspdf": "^4.2.1",
     "mongodb": "^7.2.0",
     "next": "^16.2.6",
-    "next-auth": "^4.24.14",
     "nodemailer": "^7.0.13",
     "openai": "^6.38.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "stripe": "^22.1.1"
+    "stripe": "^22.1.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

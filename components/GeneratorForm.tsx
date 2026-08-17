@@ -2,19 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuthSession } from '@/lib/auth-client';
 import { CATEGORIES, TONES } from '@/lib/constants';
-import {
-  addCreditHistoryEntry,
-  consumePaidCredit,
-  getPaidCredits,
-} from '@/lib/storage';
+import { AI_CREDIT_COSTS, getDailyFreeCredits } from '@/lib/credits/config';
 
 type GenerateResponse = {
   letter: string;
   emailVersion: string;
   billingType?: string;
   remainingCredits?: number;
+  freeCredits?: number;
+  paidCredits?: number;
+  creditsCharged?: number;
 };
 
 const initialState = {
@@ -29,7 +28,7 @@ const initialState = {
 
 export function GeneratorForm() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status } = useAuthSession();
 
   const sessionFullName =
     status === 'authenticated' && session?.user?.name
@@ -43,36 +42,41 @@ export function GeneratorForm() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [freeGenerationsRemaining, setFreeGenerationsRemaining] = useState(0);
-  const [paidCredits, setPaidCredits] = useState(() => getPaidCredits());
+  const [freeCredits, setFreeCredits] = useState(0);
+  const [paidCredits, setPaidCredits] = useState(0);
+  const [dailyFreeLimit, setDailyFreeLimit] = useState(getDailyFreeCredits);
+  const [nextFreeResetAt, setNextFreeResetAt] = useState<string | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState('');
 
   const isSessionLoading = status === 'loading';
 
   useEffect(() => {
     const refreshUsageState = async () => {
-      if (session?.user?.email) {
-        try {
-          const response = await fetch('/api/user/status');
-          const data = (await response.json()) as {
-            freeGenerationsRemaining?: number;
-            paidCredits?: number;
-          };
-          if (response.ok && typeof data.freeGenerationsRemaining === 'number') {
-            setFreeGenerationsRemaining(data.freeGenerationsRemaining);
-          }
-          if (typeof data.paidCredits === 'number') {
-            setPaidCredits(data.paidCredits);
-          }
-        } catch (err) {
-          console.error('Erreur lors de la récupération du statut utilisateur:', err);
+      if (!session?.user?.email) {
+        return;
+      }
+      try {
+        const response = await fetch('/api/credits/balance');
+        const data = (await response.json()) as {
+          freeCredits?: number;
+          paidCredits?: number;
+          dailyFreeLimit?: number;
+          nextFreeResetAt?: string;
+        };
+        if (!response.ok) {
+          return;
         }
-      } else {
-        setPaidCredits(getPaidCredits());
+        if (typeof data.freeCredits === 'number') setFreeCredits(data.freeCredits);
+        if (typeof data.paidCredits === 'number') setPaidCredits(data.paidCredits);
+        if (typeof data.dailyFreeLimit === 'number') setDailyFreeLimit(data.dailyFreeLimit);
+        if (typeof data.nextFreeResetAt === 'string') setNextFreeResetAt(data.nextFreeResetAt);
+      } catch {
+        // Le serveur reste la source de vérité au moment de la génération.
       }
     };
-    refreshUsageState();
+    void refreshUsageState();
     const handleCreditsUpdated = () => {
-      refreshUsageState();
+      void refreshUsageState();
     };
     window.addEventListener('credits-updated', handleCreditsUpdated);
     return () => {
@@ -85,7 +89,9 @@ export function GeneratorForm() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const canGenerate = freeGenerationsRemaining > 0 || paidCredits > 0;
+  const letterCost = AI_CREDIT_COSTS.GENERATE_LETTER;
+  const totalCredits = freeCredits + paidCredits;
+  const canGenerate = totalCredits >= letterCost;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -99,18 +105,24 @@ export function GeneratorForm() {
     if (isSessionLoading) return;
 
     if (!canGenerate) {
-      setError('Votre essai gratuit est utilisé. Achetez des crédits ci-dessous.');
+      setError('Crédits insuffisants. Achetez un pack ci-dessous ou attendez le renouvellement quotidien.');
       router.push('/pricing');
       return;
     }
+
+    const key = idempotencyKey || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : String(Date.now()));
+    setIdempotencyKey(key);
 
     try {
       setLoading(true);
 
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': key,
+        },
+        body: JSON.stringify({ ...form, idempotencyKey: key }),
       });
 
       const data = (await response.json()) as Partial<GenerateResponse> & {
@@ -121,20 +133,10 @@ export function GeneratorForm() {
         throw new Error(data.error || 'Impossible de générer le courrier.');
       }
 
-      if (typeof data.remainingCredits === 'number') {
-        setPaidCredits(data.remainingCredits);
-        window.dispatchEvent(new Event('credits-updated'));
-      } else if (paidCredits > 0) {
-        const nextCredits = consumePaidCredit();
-        setPaidCredits(nextCredits);
-        addCreditHistoryEntry({
-          type: 'consume',
-          credits: 1,
-          source: 'generation',
-          label: 'Génération d\'une lettre',
-        });
-        window.dispatchEvent(new Event('credits-updated'));
-      }
+      if (typeof data.freeCredits === 'number') setFreeCredits(data.freeCredits);
+      if (typeof data.paidCredits === 'number') setPaidCredits(data.paidCredits);
+      window.dispatchEvent(new Event('credits-updated'));
+      setIdempotencyKey('');
 
       sessionStorage.setItem('generated-letter', data.letter);
       sessionStorage.setItem('generated-email', data.emailVersion || '');
@@ -150,34 +152,37 @@ export function GeneratorForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs"
+      className="space-y-6 rounded-2xl border border-line bg-paper p-6 shadow-[0_10px_24px_-22px_rgba(28,25,21,0.45)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="font-serif text-2xl font-semibold text-ink">
             Générateur de courrier
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            1 essai gratuit par compte, puis paiement à l&apos;unité.
+          <p className="mt-1 text-sm text-muted">
+            Crédits gratuits renouvelés chaque jour à minuit (Europe/Paris). Coût d’une lettre : {letterCost} crédits.
           </p>
         </div>
 
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+        <span className="rounded-full bg-ivory px-3 py-1 text-sm font-medium text-ink">
           {isSessionLoading
             ? 'Chargement...'
-            : freeGenerationsRemaining > 0
-              ? `Générations gratuites : ${freeGenerationsRemaining}`
-              : `Crédits : ${paidCredits}`}
+            : `Gratuits ${freeCredits} / ${dailyFreeLimit} · Achetés ${paidCredits}`}
         </span>
       </div>
+      {nextFreeResetAt ? (
+        <p className="text-xs text-muted">
+          Renouvellement gratuit : {new Date(nextFreeResetAt).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}
+        </p>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2 text-sm font-medium text-slate-700">
+        <label className="space-y-2 text-sm font-medium text-ink">
           Catégorie
           <select
             value={form.category}
             onChange={(e) => updateField('category', e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden ring-0 focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden ring-0 focus:border-primary"
           >
             {CATEGORIES.map((category) => (
               <option key={category} value={category}>
@@ -187,12 +192,12 @@ export function GeneratorForm() {
           </select>
         </label>
 
-        <label className="space-y-2 text-sm font-medium text-slate-700">
+        <label className="space-y-2 text-sm font-medium text-ink">
           Ton
           <select
             value={form.tone}
             onChange={(e) => updateField('tone', e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden ring-0 focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden ring-0 focus:border-primary"
           >
             {TONES.map((tone) => (
               <option key={tone} value={tone}>
@@ -202,55 +207,55 @@ export function GeneratorForm() {
           </select>
         </label>
 
-        <label className="space-y-2 text-sm font-medium text-slate-700">
+        <label className="space-y-2 text-sm font-medium text-ink">
           Votre nom
           <input
             value={form.fullName}
             onChange={(e) => updateField('fullName', e.target.value)}
             placeholder="Ex: Laurent Hunaut"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
           />
         </label>
 
-        <label className="space-y-2 text-sm font-medium text-slate-700">
+        <label className="space-y-2 text-sm font-medium text-ink">
           Destinataire
           <input
             value={form.recipient}
             onChange={(e) => updateField('recipient', e.target.value)}
             placeholder="Ex: CAF de Paris"
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
           />
         </label>
       </div>
 
-      <label className="block space-y-2 text-sm font-medium text-slate-700">
+      <label className="block space-y-2 text-sm font-medium text-ink">
         Objet
         <input
           value={form.subject}
           onChange={(e) => updateField('subject', e.target.value)}
           placeholder="Ex: Demande de réexamen de dossier"
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
         />
       </label>
 
-      <label className="block space-y-2 text-sm font-medium text-slate-700">
+      <label className="block space-y-2 text-sm font-medium text-ink">
         Décrivez votre situation
         <textarea
           value={form.details}
           onChange={(e) => updateField('details', e.target.value)}
           placeholder="Expliquez le contexte, la demande, les dates utiles, les références de dossier, ce que vous attendez comme réponse..."
           rows={8}
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
         />
       </label>
 
-      <label className="block space-y-2 text-sm font-medium text-slate-700">
+      <label className="block space-y-2 text-sm font-medium text-ink">
         Pièces jointes / justificatifs
         <input
           value={form.attachments}
           onChange={(e) => updateField('attachments', e.target.value)}
           placeholder="Ex: carte d'identité, quittance de loyer, attestation employeur"
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+            className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
         />
       </label>
 
@@ -263,7 +268,7 @@ export function GeneratorForm() {
       <button
         type="submit"
         disabled={loading || isSessionLoading}
-        className="w-full rounded-xl bg-slate-900 px-5 py-4 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full rounded-xl bg-primary px-5 py-4 text-sm font-semibold text-paper hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? 'Génération en cours...' : 'Générer ma lettre'}
       </button>

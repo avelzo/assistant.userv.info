@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuthSession } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 
 type LetterHistoryEntry = {
@@ -12,6 +12,7 @@ type LetterHistoryEntry = {
   detailsPreview: string;
   letter: string;
   emailVersion: string;
+  dossierId?: string | null;
   createdAt: string;
 };
 
@@ -35,11 +36,15 @@ function formatDate(value: string): string {
 
 export function LetterHistoryCard() {
   const router = useRouter();
-  const { status } = useSession();
+  const { status } = useAuthSession();
   const [entries, setEntries] = useState<LetterHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   const handleViewResult = (entry: LetterHistoryEntry) => {
+    if (entry.dossierId) {
+      router.push(`/dossiers/${entry.dossierId}`);
+      return;
+    }
     if (typeof window === 'undefined') return;
 
     window.sessionStorage.setItem('generated-letter', entry.letter);
@@ -84,30 +89,30 @@ export function LetterHistoryCard() {
   const recentEntries = useMemo(() => entries.slice(0, 12), [entries]);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+    <section className="rounded-2xl border border-line bg-paper p-6 shadow-[0_10px_24px_-22px_rgba(28,25,21,0.45)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Historique des lettres</h3>
-          <p className="mt-1 text-sm text-slate-500">
-            Consultez vos dernières lettres générées et rouvrez le résultat courrier et email.
+          <h3 className="font-serif text-lg font-semibold text-ink">Historique des lettres</h3>
+          <p className="mt-1 text-sm text-muted">
+            Les nouvelles générations s’ouvrent dans le dossier. Les anciennes lettres restent consultables ici.
           </p>
         </div>
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+        <span className="rounded-full bg-ivory px-3 py-1 text-sm font-semibold text-ink">
           {recentEntries.length} lettre{recentEntries.length > 1 ? 's' : ''}
         </span>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+      <div className="mt-4 overflow-hidden rounded-xl border border-line">
         {loading ? (
-          <p className="px-4 py-6 text-sm text-slate-500">Chargement de l&apos;historique...</p>
+          <p className="px-4 py-6 text-sm text-muted">Chargement de l&apos;historique...</p>
         ) : recentEntries.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-slate-500">
+          <p className="px-4 py-6 text-sm text-muted">
             Aucune lettre générée n&apos;est encore associée à votre compte.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-left text-sm" aria-label="Historique des lettres générées">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <table className="min-w-full divide-y divide-line text-left text-sm" aria-label="Historique des lettres générées">
+              <thead className="bg-ivory text-xs uppercase tracking-wide text-muted">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-semibold">Date</th>
                   <th scope="col" className="px-4 py-3 font-semibold">Lettre</th>
@@ -115,26 +120,26 @@ export function LetterHistoryCard() {
                   <th scope="col" className="px-4 py-3 font-semibold">Résultat</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-white">
+              <tbody className="divide-y divide-line bg-paper">
                 {recentEntries.map((entry) => (
                   <tr key={entry.id} className="align-top">
-                    <td className="whitespace-nowrap px-4 py-4 text-slate-600">{formatDate(entry.createdAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-4 text-muted">{formatDate(entry.createdAt)}</td>
                     <td className="px-4 py-4">
-                      <p className="font-medium text-slate-900">{entry.category}</p>
-                      <p className="mt-1 text-slate-600">
+                      <p className="font-medium text-ink">{entry.category}</p>
+                      <p className="mt-1 text-muted">
                         {entry.subject || entry.detailsPreview || 'Sans objet renseigné'}
                       </p>
                     </td>
-                    <td className="px-4 py-4 text-slate-600">
+                    <td className="px-4 py-4 text-muted">
                       {entry.recipient || 'Non renseigné'}
                     </td>
                     <td className="px-4 py-4">
                       <button
                         type="button"
                         onClick={() => handleViewResult(entry)}
-                        className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="rounded-lg border border-line px-3 py-2 text-xs font-semibold text-ink hover:bg-ivory"
                       >
-                        Voir courrier + email
+                        {entry.dossierId ? 'Ouvrir le dossier' : 'Voir courrier + email'}
                       </button>
                     </td>
                   </tr>

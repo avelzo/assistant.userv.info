@@ -2,45 +2,66 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Script from 'next/script';
+import { RecaptchaNotice } from '@/components/auth/RecaptchaNotice';
+import { executeRecaptcha, recaptchaSiteKey } from '@/lib/recaptcha-client';
+import { fieldClass, primaryButtonClass } from '@/lib/ui/classes';
 
 export function ForgotPasswordPageContent() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const siteKey = recaptchaSiteKey();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setStatus('idle');
+    setError('');
 
-    const res = await fetch('/api/auth/forgot-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
+    try {
+      const recaptchaToken = await executeRecaptcha('forgot_password');
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, recaptchaToken }),
+      });
 
-    setLoading(false);
-    setStatus(res.ok ? 'success' : 'error');
+      setLoading(false);
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setError(data?.error || 'Une erreur est survenue. Veuillez réessayer.');
+        setStatus('error');
+        return;
+      }
+      setStatus('success');
+    } catch (err) {
+      setLoading(false);
+      setStatus('error');
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue. Veuillez réessayer.');
+    }
   }
 
   return (
     <>
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Réinitialiser votre mot de passe</h1>
-      <p className="mb-6 text-sm text-slate-500">
-        {`Indiquez l'adresse email de votre compte pour recevoir un lien de réinitialisation.`}
+      {siteKey ? (
+        <Script src={`https://www.google.com/recaptcha/api.js?render=${siteKey}`} strategy="afterInteractive" />
+      ) : null}
+      <h1 className="font-serif text-2xl font-semibold tracking-tight text-ink">Réinitialiser votre mot de passe</h1>
+      <p className="mt-2 mb-6 text-sm text-muted">
+        Indiquez l’adresse email de votre compte pour recevoir un lien de réinitialisation.
       </p>
 
       {status === 'success' ? (
-        <div className="rounded-lg bg-green-50 px-4 py-4 text-sm text-green-800">
-          <p className="font-medium">Email envoyé !</p>
-          <p className="mt-1">
-            Si cet email est enregistré, vous recevrez un lien dans quelques minutes.
-          </p>
+        <div className="rounded-xl bg-primary/10 px-4 py-4 text-sm text-primary">
+          <p className="font-medium">Email envoyé</p>
+          <p className="mt-1 text-ink">Si cet email est enregistré, vous recevrez un lien dans quelques minutes.</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+            <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">
               Adresse email
             </label>
             <input
@@ -50,29 +71,26 @@ export function ForgotPasswordPageContent() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+              className={fieldClass}
               placeholder="vous@exemple.fr"
             />
           </div>
 
-          {status === 'error' && (
-            <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-              Une erreur est survenue. Veuillez réessayer.
+          {status === 'error' ? (
+            <p role="alert" className="rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">
+              {error || 'Une erreur est survenue. Veuillez réessayer.'}
             </p>
-          )}
+          ) : null}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-          >
+          <button type="submit" disabled={loading} className={`w-full ${primaryButtonClass}`}>
             {loading ? 'Envoi…' : 'Recevoir le lien'}
           </button>
+          <RecaptchaNotice />
         </form>
       )}
 
-      <p className="mt-6 text-center text-sm text-slate-500">
-        <Link href="/auth/login" className="font-medium text-indigo-600 hover:underline">
+      <p className="mt-6 text-center text-sm text-muted">
+        <Link href="/auth/login" className="font-medium text-primary hover:underline">
           ← Retour à la connexion
         </Link>
       </p>

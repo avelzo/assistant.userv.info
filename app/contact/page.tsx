@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { ContactPageContent } from '@/components/ContactPageContent';
 import { Header } from '@/components/Header';
+import { LandingFooter } from '@/components/landing/LandingFooter';
 
 export const metadata: Metadata = {
   title: 'Contact | Assistant Administratif AI',
@@ -17,9 +18,10 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <>
-      <Header />
+    <main className="min-h-screen bg-ivory">
+      <Header variant="marketing" />
       <ContactPageContent />
-    </>
+      <LandingFooter />
+    </main>
   );
 }

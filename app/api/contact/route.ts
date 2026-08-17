@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/mail';
-import { verifyRecaptchaToken } from '@/lib/recaptcha'
+import { assertRecaptcha } from '@/lib/recaptcha';
+import { escapeHtml } from '@/lib/html';
+import { getTrustedClientIp } from '@/lib/ip';
+import { rejectIfDisallowedOrigin } from '@/lib/origin';
+import { consumeRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { recordSecurityEvent } from '@/lib/security-event';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -9,17 +14,44 @@ function normalize(value: unknown) {
 }
 
 export async function POST(req: NextRequest) {
+  const originError = rejectIfDisallowedOrigin(req);
+  if (originError) {
+    await recordSecurityEvent({
+      kind: 'ORIGIN_REJECT',
+      route: '/api/contact',
+      status: 403,
+      ip: getTrustedClientIp(req),
+    });
+    return originError;
+  }
+
+  const ip = getTrustedClientIp(req);
+  const ipLimit = await consumeRateLimit({
+    key: `contact:ip:${ip}`,
+    windowMs: RATE_LIMITS.contactIp.windowMs,
+    max: RATE_LIMITS.contactIp.max,
+  });
+
+  if (!ipLimit.allowed) {
+    await recordSecurityEvent({
+      kind: 'RATE_LIMIT',
+      route: '/api/contact',
+      status: 429,
+      ip,
+    });
+    return NextResponse.json({ error: 'Trop de requêtes. Réessayez plus tard.' }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => null);
 
-  const name = normalize(body?.name);
-  const email = normalize(body?.email);
-  const subject = normalize(body?.subject) || `Nouveau message depuis le site`; 
-  const message = normalize(body?.message);
+  const name = normalize(body?.name).slice(0, 120);
+  const email = normalize(body?.email).slice(0, 254);
+  const subject = (normalize(body?.subject) || 'Nouveau message depuis le site').slice(0, 200);
+  const message = normalize(body?.message).slice(0, 5000);
   const recaptchaToken = normalize(body?.recaptchaToken);
-  if (!recaptchaToken) {
-    return NextResponse.json({ error: "Token reCAPTCHA manquant." }, { status: 400 })
-  }
-  if (!name || !email || !message ) {
+  const website = normalize(body?.website);
+
+  if (!name || !email || !message) {
     return NextResponse.json(
       { error: 'Le nom, l’email et le message sont obligatoires.' },
       { status: 400 }
@@ -30,30 +62,55 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Adresse email invalide.' }, { status: 400 });
   }
 
+  if (website) {
+    await recordSecurityEvent({
+      kind: 'HONEYPOT',
+      route: '/api/contact',
+      status: 200,
+      ip,
+    });
+    return NextResponse.json({ message: 'Votre message a bien été envoyé. Nous vous répondrons dès que possible.' });
+  }
+
+  const recaptcha = await assertRecaptcha({
+    token: recaptchaToken,
+    expectedAction: 'contact_form',
+  });
+
+  if (!recaptcha.ok) {
+    await recordSecurityEvent({
+      kind: 'RECAPTCHA_FAIL',
+      route: '/api/contact',
+      status: 400,
+      ip,
+      metadata: { reason: recaptcha.reason },
+    });
+    return NextResponse.json({ error: 'Échec de la vérification reCAPTCHA.' }, { status: 400 });
+  }
+
+  const safeName = escapeHtml(name);
+  const safeEmail = escapeHtml(email);
+  const safeSubject = escapeHtml(subject);
+  const safeMessage = escapeHtml(message).replace(/\n/g, '<br />');
+
   const text = `Message de ${name} <${email}>\n\n${message}`;
   const html = `
     <p>Message envoyé depuis le formulaire de contact :</p>
-    <p><strong>Nom</strong> : ${name}</p>
-    <p><strong>Email</strong> : ${email}</p>
-    <p><strong>Sujet</strong> : ${subject}</p>
+    <p><strong>Nom</strong> : ${safeName}</p>
+    <p><strong>Email</strong> : ${safeEmail}</p>
+    <p><strong>Sujet</strong> : ${safeSubject}</p>
     <hr />
-    <p>${message.replace(/\n/g, '<br />')}</p>
+    <p>${safeMessage}</p>
   `;
 
   try {
-    const verification = await verifyRecaptchaToken(recaptchaToken)
-    if (!verification.success || verification.action !== 'contact_form' || (verification.score !== undefined && verification.score < 0.5)) {
-        console.log('reCAPTCHA verification failed', verification)
-        return NextResponse.json({ error: 'Échec de la vérification reCAPTCHA.' }, { status: 400 })
-    }
     await sendEmail({
       subject: `Contact - ${subject}`,
       text,
       html,
       replyTo: email,
     });
-  } catch (error) {
-    console.error('[contact] Erreur d’envoi', error);
+  } catch {
     return NextResponse.json(
       { error: 'Impossible d’envoyer votre message pour le moment. Réessayez plus tard.' },
       { status: 500 }
@@ -62,36 +119,3 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ message: 'Votre message a bien été envoyé. Nous vous répondrons dès que possible.' });
 }
-/*
-const { firstname, lastname, phone, email, message, recaptchaToken } = data;
-
-    if (!recaptchaToken) {
-        return NextResponse.json({ success: false, error: true, message: 'Token reCAPTCHA manquant.', fields: {} }, { status: 400 })
-    }
-
-    try{
-        const verification = await verifyRecaptchaToken(recaptchaToken)
-        if (!verification.success || verification.action !== 'contact_form' || (verification.score !== undefined && verification.score < 0.5)) {
-            console.log('reCAPTCHA verification failed', verification)
-            return NextResponse.json({ success: false, error: true, message: 'Échec de la vérification reCAPTCHA.', fields: {} }, { status: 400 })
-        }
-
-        const emailTo = process.env.SMTP_FROM?? 'inventory@userv.info';
-        const emailSentResponse = await sendEmailFromSite({
-            from    : firstname + ' ' + lastname + "<" + email + ">",
-            to      : emailTo,
-            replyTo : email,
-            subject : "Etat des lieux App - Contact - message de la part de " + firstname + ' ' + lastname,
-            html    : await render(ContactEmailTeamplate(firstname, lastname, email, phone, message)),
-        });
-        if (emailSentResponse.accepted.includes(emailTo)) {
-            return NextResponse.json({ success: true, error: false, message: '' }, { status: 200 })
-        }
-        else{
-            return NextResponse.json({ success: false, error: true, message: "Error sending email", fields:{}}, { status: 500 })
-        }
-    } catch(error){
-        console.log({error});
-        return NextResponse.json({ success: false, error: true, message: error }, { status: 500 })
-    }
-*/

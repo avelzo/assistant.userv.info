@@ -14,11 +14,11 @@
   - app/auth/* hosts login/register/forgot/reset flows.
   - app/account/page.tsx and app/settings/page.tsx expose account and profile settings.
 - API routes are in app/api:
-  - app/api/generate/route.ts handles OpenAI generation and in-memory rate limiting.
+  - app/api/generate/route.ts handles OpenAI generation, auth obligatoire et rate limiting MongoDB.
   - app/api/create-checkout-session/route.ts handles Stripe checkout session creation.
   - app/api/credits/claim/route.ts validates Stripe sessions and credits user balances.
   - app/api/packs/route.ts exposes active credit packs.
-  - app/api/account/route.ts upserts account profile data.
+  - app/api/account/route.ts lit/met à jour le profil du compte authentifié (pas de changement d’email).
   - app/api/auth/* and app/api/auth/[...nextauth]/route.ts handle auth flows.
 - Reusable UI lives in components/, and shared client helpers live in lib/.
 - Server-side persistence exists via Prisma + MongoDB for users, credits, and generations.
@@ -42,6 +42,7 @@
   - Prisma MongoDB models,
   - credit ledger and balances.
 - For generation changes, preserve the JSON contract returned by app/api/generate/route.ts: letter and emailVersion.
+- Generation and paid checkout require an authenticated session. Do not reintroduce anonymous IP trials.
 - For UI changes touching premium flow, preserve compatibility with the existing localStorage/sessionStorage keys and behavior.
 - Keep SSR-safe browser storage access patterns (guard window usage) in client code.
 - Reuse established examples when adding features:

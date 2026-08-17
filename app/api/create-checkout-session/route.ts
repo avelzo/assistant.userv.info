@@ -1,8 +1,11 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { getCreditPacks } from '@/lib/packs';
-import { authOptions } from '@/lib/auth';
+import { requireAuthSession } from '@/lib/session';
+import { paidCreditsForPack } from '@/lib/credits/config';
+import { getTrustedClientIp } from '@/lib/ip';
+import { rejectIfDisallowedOrigin } from '@/lib/origin';
+import { consumeRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
 
 const stripeKey = process.env.STRIPE_SECRET_KEY;
 
@@ -28,6 +31,33 @@ function splitFullName(value: string): { firstname: string; lastname: string } {
 
 export async function POST(request: Request) {
   try {
+    const originError = rejectIfDisallowedOrigin(request);
+    if (originError) {
+      return originError;
+    }
+
+    const authSession = await requireAuthSession();
+    const sessionEmail = authSession?.user?.email?.trim().toLowerCase() || '';
+    const sessionUserId = authSession?.user?.id || '';
+
+    if (!sessionEmail || !sessionUserId) {
+      return NextResponse.json(
+        { error: 'Vous devez être connecté pour acheter des crédits.' },
+        { status: 401 }
+      );
+    }
+
+    const ip = getTrustedClientIp(request);
+    const ipLimit = await consumeRateLimit({
+      key: `checkout:ip:${ip}`,
+      windowMs: RATE_LIMITS.checkoutIp.windowMs,
+      max: RATE_LIMITS.checkoutIp.max,
+    });
+
+    if (!ipLimit.allowed) {
+      return NextResponse.json({ error: 'Trop de requêtes. Réessayez plus tard.' }, { status: 429 });
+    }
+
     if (!stripeKey) {
       return NextResponse.json(
         {
@@ -57,14 +87,12 @@ type CheckoutSessionCreate = NonNullable<Parameters<typeof stripe.checkout.sessi
       );
     }
 
-    const authSession = await getServerSession(authOptions);
-    const sessionEmail = authSession?.user?.email?.trim().toLowerCase() || '';
     const sessionName = authSession?.user?.name?.trim() || '';
     const splitSessionName = splitFullName(sessionName);
 
-    const customerEmail = body.email?.trim().toLowerCase() || sessionEmail || undefined;
-    const customerFirstname = body.firstname?.trim() || splitSessionName.firstname;
-    const customerLastname = body.lastname?.trim() || splitSessionName.lastname;
+    const customerEmail = sessionEmail;
+    const customerFirstname = splitSessionName.firstname || body.firstname?.trim() || '';
+    const customerLastname = splitSessionName.lastname || body.lastname?.trim() || '';
 
     const lineItems: CheckoutSessionCreate['line_items'] =
       selectedPack.stripePriceId
@@ -80,7 +108,7 @@ type CheckoutSessionCreate = NonNullable<Parameters<typeof stripe.checkout.sessi
                 currency: 'eur',
                 product_data: {
                   name: selectedPack.label,
-                  description: `${selectedPack.credits} génération${selectedPack.credits > 1 ? 's' : ''} de lettre + version email + export PDF`,
+                  description: `${paidCreditsForPack(selectedPack)} crédits`,
                 },
                 unit_amount: selectedPack.priceCents,
               },
@@ -97,7 +125,9 @@ type CheckoutSessionCreate = NonNullable<Parameters<typeof stripe.checkout.sessi
         customer_creation: 'always',
         metadata: {
           packId: selectedPack.code,
-          credits: String(selectedPack.credits),
+          credits: String(paidCreditsForPack(selectedPack)),
+          creditsGranted: String(paidCreditsForPack(selectedPack)),
+          userId: sessionUserId,
           accountEmail: customerEmail || '',
           accountFirstname: customerFirstname,
           accountLastname: customerLastname,
@@ -108,7 +138,6 @@ type CheckoutSessionCreate = NonNullable<Parameters<typeof stripe.checkout.sessi
 
     return NextResponse.json({ url: stripeSession.url });
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erreur Stripe.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: 'Erreur Stripe.' }, { status: 500 });
   }
 }

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
-import { compare, hash } from 'bcryptjs';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
+import { requireAuthSession } from '@/lib/session';
 
 type ChangePasswordBody = {
   currentPassword?: string;
@@ -12,11 +10,13 @@ type ChangePasswordBody = {
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    const accountEmail = session?.user?.email?.trim().toLowerCase() || '';
+    const session = await requireAuthSession();
 
-    if (!accountEmail) {
-      return NextResponse.json({ error: 'Vous devez être connecté pour changer votre mot de passe.' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Vous devez être connecté pour changer votre mot de passe.' },
+        { status: 401 }
+      );
     }
 
     let body: ChangePasswordBody;
@@ -55,26 +55,18 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { email: accountEmail } });
-
-    if (!user?.password) {
-      return NextResponse.json(
-        { error: 'Aucun mot de passe local n\'est configuré pour ce compte.' },
-        { status: 400 }
-      );
-    }
-
-    const passwordMatches = await compare(currentPassword, user.password);
-    if (!passwordMatches) {
+    try {
+      await auth.api.changePassword({
+        body: {
+          currentPassword,
+          newPassword,
+          revokeOtherSessions: false,
+        },
+        headers: request.headers,
+      });
+    } catch {
       return NextResponse.json({ error: 'Mot de passe actuel incorrect.' }, { status: 400 });
     }
-
-    const hashedPassword = await hash(newPassword, 12);
-
-    await prisma.user.update({
-      where: { email: accountEmail },
-      data: { password: hashedPassword },
-    });
 
     return NextResponse.json({ message: 'Mot de passe mis à jour avec succès.' }, { status: 200 });
   } catch {

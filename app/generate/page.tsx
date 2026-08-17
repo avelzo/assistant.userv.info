@@ -1,56 +1,43 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { GeneratorForm } from '@/components/GeneratorForm';
 import { Header } from '@/components/Header';
-import { PricingCard } from '@/components/PricingCard';
 import { PaymentFlag } from '@/components/PaymentFlag';
+import { VerifyEmailNotice } from '@/components/VerifyEmailNotice';
+import { BriefingForm } from '@/components/BriefingForm';
+import { getAuthSession } from '@/lib/session';
 
 export const metadata: Metadata = {
-  title: 'Générer un courrier',
-  description:
-    'Décrivez votre situation et obtenez une lettre administrative formelle ainsi qu\'une version email prête à envoyer.',
+  title: 'Commencer une démarche',
+  description: 'Décrivez votre objectif, le destinataire et le contexte pour ouvrir un dossier.',
   alternates: {
     canonical: '/generate',
-  },
-  openGraph: {
-    url: '/generate',
-    title: 'Générer un courrier',
-    description:
-      'Décrivez votre situation et obtenez une lettre administrative formelle ainsi qu\'une version email prête à envoyer.',
-  },
-  twitter: {
-    title: 'Générer un courrier',
-    description:
-      'Décrivez votre situation et obtenez une lettre administrative formelle ainsi qu\'une version email prête à envoyer.',
   },
 };
 
 export default async function GeneratePage() {
-  const session = await getServerSession(authOptions);
+  const session = await getAuthSession();
 
   if (!session) {
-    redirect('/auth/login');
+    redirect('/auth/login?callbackUrl=/generate');
   }
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-ivory">
       <Header />
-
-      <section className="mx-auto w-full mt-2 px-6 absolute z-50 flex items-center justify-center">
+      <section className="absolute z-50 mt-2 flex w-full items-center justify-center px-6">
         <PaymentFlag />
       </section>
-
-      <section className="mx-auto w-full max-w-3xl space-y-6 px-6 pb-16 pt-6">
+      <section className="mx-auto w-full max-w-2xl space-y-6 px-4 pb-16 pt-8 sm:px-6">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Générer un courrier</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Remplissez les informations ci-dessous pour obtenir votre lettre.
+          <p className="text-sm font-medium uppercase tracking-[0.14em] text-accent">Nouvelle démarche</p>
+          <h1 className="mt-2 font-serif text-3xl text-ink">Commencez par votre problème</h1>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Trois éléments suffisent pour ouvrir un dossier. Les paramètres de lettre viendront ensuite,
+            si besoin.
           </p>
         </div>
-        <GeneratorForm />
-        <PricingCard />
+        <VerifyEmailNotice emailVerified={Boolean(session.user.emailVerified)} />
+        <BriefingForm />
       </section>
     </main>
   );

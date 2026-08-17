@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const originalEnv = { ...process.env };
 
-type MockSession = { user: { email: string } } | null;
+type MockSession = { user: { id?: string; email: string } } | null;
 
-async function loadRouteModule(session: MockSession = { user: { email: 'laurent@example.com' } }) {
+async function loadRouteModule(session: MockSession = { user: { id: 'user-1', email: 'laurent@example.com' } }) {
   vi.resetModules();
 
   vi.doMock('next/server', () => ({
@@ -17,11 +17,9 @@ async function loadRouteModule(session: MockSession = { user: { email: 'laurent@
     },
   }));
 
-  vi.doMock('next-auth', () => ({
-    getServerSession: vi.fn().mockResolvedValue(session),
+  vi.doMock('@/lib/session', () => ({
+    requireAuthSession: vi.fn().mockResolvedValue(session),
   }));
-
-  vi.doMock('@/lib/auth', () => ({ authOptions: {} }));
 
   vi.doMock('@prisma/client', () => ({
     CreditLedgerEntrySource: { STRIPE: 'STRIPE', GENERATION: 'GENERATION' },
@@ -33,6 +31,19 @@ async function loadRouteModule(session: MockSession = { user: { email: 'laurent@
     },
   }));
 
+  vi.doMock('@/lib/credits', () => ({
+    creditService: {
+      getBalance: vi.fn().mockResolvedValue({
+        userId: 'user-1',
+        freeCredits: 15,
+        paidCredits: 3,
+        totalCredits: 18,
+        dailyFreeLimit: 15,
+        nextFreeResetAt: '2026-08-16T22:00:00.000Z',
+      }),
+    },
+  }));
+
   vi.doMock('@/lib/prisma', () => ({
     prisma: {
       user: {
@@ -41,15 +52,17 @@ async function loadRouteModule(session: MockSession = { user: { email: 'laurent@
           firstname: 'Laurent',
           lastname: 'Hunaut',
         }),
-      },
-      creditBalance: {
-        findUnique: vi.fn().mockResolvedValue({ credits: 3 }),
+        update: vi.fn().mockResolvedValue({
+          email: 'laurent@example.com',
+          firstname: 'Laurent',
+          lastname: 'Hunaut',
+        }),
       },
       creditLedgerEntry: {
         findMany: vi.fn().mockResolvedValue([
           {
             id: 'ledger-1',
-            delta: -1,
+            amount: -1,
             source: 'GENERATION',
             label: 'Lettre CAF',
             createdAt: new Date('2026-04-05T10:30:00.000Z'),
@@ -90,7 +103,14 @@ describe('GET /api/account', () => {
     const { GET } = await loadRouteModule();
     const response = await GET();
     const data = (await response.json()) as {
-      account: { email: string; firstname: string; lastname: string; credits: number };
+      account: {
+        email: string;
+        firstname: string;
+        lastname: string;
+        credits: number;
+        freeCredits: number;
+        paidCredits: number;
+      };
       history: Array<{ id: string; label: string }>;
       generations: Array<{
         id: string;
@@ -105,11 +125,13 @@ describe('GET /api/account', () => {
     };
 
     expect(response.status).toBe(200);
-    expect(data.account).toEqual({
+    expect(data.account).toMatchObject({
       email: 'laurent@example.com',
       firstname: 'Laurent',
       lastname: 'Hunaut',
-      credits: 3,
+      credits: 18,
+      freeCredits: 15,
+      paidCredits: 3,
     });
     expect(data.history).toHaveLength(1);
     expect(data.generations).toEqual([
@@ -121,8 +143,54 @@ describe('GET /api/account', () => {
         detailsPreview: 'Je souhaite demander un réexamen de ma situation.',
         letter: 'Voici le courrier généré.',
         emailVersion: 'Voici la version email.',
+        dossierId: null,
         createdAt: '2026-04-05T10:30:00.000Z',
       },
     ]);
+  });
+});
+
+describe('POST /api/account', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it('refuse une modification sans session', async () => {
+    const { POST } = await loadRouteModule(null);
+    const response = await POST(
+      new Request('http://localhost/api/account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'attacker@example.com',
+          firstname: 'A',
+          lastname: 'B',
+        }),
+      })
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  it('refuse un changement d’email', async () => {
+    const { POST } = await loadRouteModule();
+    const response = await POST(
+      new Request('http://localhost/api/account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: 'autre@example.com',
+          firstname: 'Laurent',
+          lastname: 'Hunaut',
+        }),
+      })
+    );
+
+    expect(response.status).toBe(400);
   });
 });

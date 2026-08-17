@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuthSession } from '@/lib/auth-client';
 import { getAccountProfile } from '@/lib/storage';
+import { approximatePackUsage, getDailyFreeCredits } from '@/lib/credits/config';
 
 type Pack = {
   id: string;
@@ -20,7 +21,7 @@ type PricingCardProps = {
 
 export function PricingCard({ variant = 'default', enableCheckout = true }: PricingCardProps) {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session } = useAuthSession();
   const [loadingPackId, setLoadingPackId] = useState<string | null>(null);
   const [loadingPacks, setLoadingPacks] = useState(true);
   const [packs, setPacks] = useState<Pack[]>([]);
@@ -73,6 +74,7 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
     void loadPacks();
   }, [sessionEmail, sessionFirstname, sessionLastname]);
 
+  const dailyFree = getDailyFreeCredits();
   const helperText = useMemo(() => {
     if (!session?.user?.email) {
       return 'Connectez-vous pour acheter un pack et rattacher les crédits à votre compte.';
@@ -121,56 +123,65 @@ export function PricingCard({ variant = 'default', enableCheckout = true }: Pric
   const sectionClassName =
     variant === 'home'
       ? 'p-6 md:p-8'
-      : 'rounded-2xl border border-blue-200 bg-blue-50 p-6 shadow-xs';
+      : 'rounded-2xl border border-line bg-paper p-6 shadow-[0_10px_24px_-22px_rgba(28,25,21,0.45)]';
 
   return (
     <section className={sectionClassName}>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="md:w-1/2">
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Offre de lancement</p>
-          <h3 className="mt-1 text-2xl font-bold text-slate-900">Continuez avec un pack de crédits</h3>
-          <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Après votre essai gratuit, choisissez le pack adapté pour continuer à générer vos courriers, emails et exports PDF.
+          <p className="text-sm font-semibold uppercase tracking-wide text-accent">Packs de crédits</p>
+          <h3 className="mt-1 font-serif text-2xl font-semibold text-ink">Choisissez selon vos démarches</h3>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            {dailyFree} crédits sont offerts chaque jour (environ un courrier). Les packs restent disponibles
+            jusqu’à utilisation. Plus le pack est grand, plus le crédit est avantageux.
           </p>
-          <p className="mt-1 text-xs text-slate-500">{helperText}</p>
+          <p className="mt-1 text-xs text-muted">{helperText}</p>
         </div>
         <div className="grid w-full gap-3 md:w-full md:grid-cols-3">
           {loadingPacks
             ? Array.from({ length: 3 }).map((_, index) => (
                 <div
                   key={`pack-skeleton-${index}`}
-                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white px-3 pt-3 pb-10 shadow-xs w-full"
+                  className="overflow-hidden rounded-2xl border border-line bg-paper px-3 pt-3 pb-10 shadow-xs w-full"
                   aria-hidden="true"
                 >
-                  <div className="h-4 w-full rounded-sm bg-slate-200/90 animate-pulse" />
-                  <div className="mt-3 h-6 w-full rounded-sm bg-slate-200/90 animate-pulse" />
+                  <div className="h-4 w-full rounded-sm bg-desk animate-pulse" />
+                  <div className="mt-3 h-6 w-full rounded-sm bg-desk animate-pulse" />
                 </div>
               ))
             : null}
-          {packs.map((pack) => (
+          {packs.map((pack) => {
+            const usage = approximatePackUsage(pack.credits);
+            return (
             <button
               key={pack.id}
               onClick={() => startCheckout(pack.id)}
               disabled={loadingPackId !== null || loadingPacks}
-              className="rounded-2xl border border-slate-200 bg-white px-2 py-2 text-center shadow-xs transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-line bg-ivory px-2 py-3 text-center shadow-xs transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <span className="block text-sm font-semibold text-slate-700">{pack.label}</span>
-              <span className="mt-2 block text-xl text-slate-500">
+              <span className="block text-sm font-semibold text-ink">{pack.credits} crédits</span>
+              <span className="mt-1 block text-xs text-muted">
+                ≈ {usage.letters} lettre{usage.letters > 1 ? 's' : ''} ou {usage.questions} questions
+              </span>
+              <span className="mt-2 block text-xl text-ink">
                 {(pack.priceCents / 100).toFixed(2)} €
               </span>
               {pack.highlighted ? (
-                <span className="mt-2 pt-1 border-t block text-xs font-semibold uppercase tracking-wide text-blue-700">
+                <span className="mt-2 block border-t border-line pt-1 text-xs font-semibold uppercase tracking-wide text-accent">
                   Populaire
                 </span>
-              ) : <span className="mt-2 pt-1">&nbsp;</span>}
+              ) : (
+                <span className="mt-2 block pt-1">&nbsp;</span>
+              )}
               {loadingPackId === pack.id ? (
-                <span className="mt-2 block text-xs text-blue-700">Redirection vers le paiement...</span>
+                <span className="mt-2 block text-xs text-primary">Redirection vers le paiement...</span>
               ) : null}
             </button>
-          ))}
+            );
+          })}
           {!loadingPacks && packs.length === 0 ? (
             <div className="col-span-3 px-3 py-2 flex items-center justify-center">
-              <p className="text-xs text-slate-600">Aucun pack disponible pour le moment.</p>
+              <p className="text-xs text-muted">Aucun pack disponible pour le moment.</p>
             </div>
           ) : null}
         </div>

@@ -1,20 +1,27 @@
 @import 'tailwindcss';
 
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+@theme {
+  --color-ivory: #f7f4ee;
+  --color-paper: #fffdf8;
+  --color-ink: #1c1915;
+  --color-primary: #2c5850;
+  --color-primary-hover: #234740;
+  --color-accent: #b26a2b;
+  --color-line: #e4ddd0;
+  --color-muted: #6b6458;
+  --color-desk: #efece4;
+  --font-sans: var(--font-ui), 'Public Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-display), Newsreader, ui-serif, Georgia, serif;
+  --font-mono: var(--font-data), 'DM Mono', ui-monospace, monospace;
+}
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
-*/
 @layer base {
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-line, currentcolor);
   }
 }
 
@@ -26,14 +33,40 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: #f8fafc;
-  color: #0f172a;
+  background: #f7f4ee;
+  color: #1c1915;
 }
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 * {
   box-sizing: border-box;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .print-paper {
+    box-shadow: none !important;
+    border: none !important;
+    width: auto !important;
+    max-width: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .print-document {
+    font-family: var(--font-serif), Georgia, serif;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #111;
+  }
 }

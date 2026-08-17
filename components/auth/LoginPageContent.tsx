@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { authClient } from '@/lib/auth-client';
+import { fieldClass, primaryButtonClass } from '@/lib/ui/classes';
 
 export function LoginPageContent() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export function LoginPageContent() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const registered = searchParams.get('registered') === '1';
 
   const registerHref = callbackUrl
     ? `/auth/register?callbackUrl=${encodeURIComponent(callbackUrl)}`
@@ -23,31 +25,36 @@ export function LoginPageContent() {
     setError('');
     setLoading(true);
 
-    const result = await signIn('credentials', {
+    const { error: signInError } = await authClient.signIn.email({
       email,
       password,
-      redirect: false,
     });
 
     setLoading(false);
 
-    if (result?.error) {
+    if (signInError) {
       setError('Email ou mot de passe incorrect.');
-    } else {
-      router.push(callbackUrl);
-      router.refresh();
+      return;
     }
+
+    router.push(callbackUrl);
+    router.refresh();
   }
 
   return (
     <>
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Connexion</h1>
-      <p className="mb-6 text-sm text-slate-500">
-        Connectez-vous pour retrouver votre compte, vos crédits et vos paiements.
+      <h1 className="font-serif text-2xl font-semibold tracking-tight text-ink">Connexion</h1>
+      <p className="mt-2 mb-6 text-sm text-muted">
+        Connectez-vous pour retrouver votre compte, vos crédits et vos démarches.
       </p>
+      {registered ? (
+        <p className="mb-4 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">
+          Vérifiez votre adresse e-mail pour utiliser Assistant. Vous pouvez déjà vous connecter à votre compte.
+        </p>
+      ) : null}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
+          <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">
             Adresse email
           </label>
           <input
@@ -57,16 +64,16 @@ export function LoginPageContent() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className={fieldClass}
             placeholder="vous@exemple.fr"
           />
         </div>
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <label htmlFor="password" className="text-sm font-medium text-slate-700">
+            <label htmlFor="password" className="text-sm font-medium text-ink">
               Mot de passe
             </label>
-            <Link href="/auth/forgot-password" className="text-sm text-indigo-600 hover:underline">
+            <Link href="/auth/forgot-password" className="text-sm text-primary hover:underline">
               Mot de passe oublié ?
             </Link>
           </div>
@@ -77,29 +84,25 @@ export function LoginPageContent() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-hidden transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+            className={fieldClass}
             placeholder="••••••••"
           />
         </div>
 
-        {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
+        {error ? (
+          <p role="alert" className="rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">
             {error}
           </p>
-        )}
+        ) : null}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-        >
+        <button type="submit" disabled={loading} className={`w-full ${primaryButtonClass}`}>
           {loading ? 'Connexion…' : 'Accéder à mon compte'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-6 text-center text-sm text-muted">
         {`Vous n'avez pas encore de compte ? `}
-        <Link href={registerHref} className="font-medium text-indigo-600 hover:underline">
+        <Link href={registerHref} className="font-medium text-primary hover:underline">
           Créer un compte
         </Link>
       </p>

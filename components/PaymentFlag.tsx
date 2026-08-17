@@ -32,6 +32,7 @@ export function PaymentFlag() {
         alreadyProcessed?: boolean;
         credits?: number;
         availableCredits?: number;
+        paidCredits?: number;
         email?: string;
         firstname?: string;
         lastname?: string;
@@ -83,7 +84,9 @@ export function PaymentFlag() {
           });
         }
 
-        if (typeof data.availableCredits === 'number') {
+        if (typeof data.paidCredits === 'number') {
+          setPaidCredits(data.paidCredits);
+        } else if (typeof data.availableCredits === 'number') {
           setPaidCredits(data.availableCredits);
         } else if (data.credited && typeof data.credits === 'number') {
           addPaidCredits(data.credits);

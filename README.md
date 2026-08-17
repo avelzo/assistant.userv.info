@@ -11,7 +11,7 @@ Application Next.js pour générer des lettres et emails administratifs en fran�
 - Résultat avec copie presse-papiers
 - Export PDF
 - Essai gratuit initial (local)
-- Authentification (inscription, connexion, mot de passe oublié/réinitialisation)
+- Authentification Better Auth (inscription, vérification e-mail, connexion, mot de passe oublié)
 - Paiement Stripe par packs de crédits
 - Ajout des crédits au compte après paiement et historique de crédits
 
@@ -22,7 +22,7 @@ Application Next.js pour générer des lettres et emails administratifs en fran�
 - Tailwind CSS
 - Prisma
 - MongoDB
-- NextAuth (Credentials)
+- Better Auth (e-mail / mot de passe)
 - OpenAI API
 - Stripe Checkout
 
@@ -57,8 +57,8 @@ DATABASE_USER="username"
 DATABASE_USERPASS="userPasswd"
 # Pour Prisma (à définir explicitement dans .env)
 # DATABASE_URL=mongodb://${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}?directConnection=true&ssl=false&authSource=admin
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=change-me
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_SECRET=change-me
 ```
 
 ## Structure

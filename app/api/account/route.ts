@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
 import { CreditLedgerEntrySource } from '@prisma/client';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { requireAuthSession } from '@/lib/session';
+import { displayName } from '@/lib/register-guards';
+import { creditService } from '@/lib/credits';
 
 type AccountBody = {
   email?: string;
   firstname?: string;
   lastname?: string;
   previousEmail?: string;
+  addressLine?: string;
+  postalCode?: string;
+  city?: string;
+  phone?: string;
 };
 
 function normalizeEmail(value?: string | null): string {
@@ -17,21 +22,22 @@ function normalizeEmail(value?: string | null): string {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await requireAuthSession();
     const email = normalizeEmail(session?.user?.email);
+    const userId = session?.user?.id || '';
 
-    if (!email) {
+    if (!email || !userId) {
       return NextResponse.json(
         { error: 'Vous devez être connecté pour consulter votre compte.' },
         { status: 401 }
       );
     }
 
-    const [user, balance, ledgerEntries, letterGenerations] = await Promise.all([
-      prisma.user.findUnique({ where: { email } }),
-      prisma.creditBalance.findUnique({ where: { email } }),
+    const [user, creditView, ledgerEntries, letterGenerations] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      creditService.getBalance(userId),
       prisma.creditLedgerEntry.findMany({
-        where: { accountEmail: email },
+        where: { OR: [{ userId }, { accountEmail: email }] },
         orderBy: { createdAt: 'desc' },
         take: 30,
       }),
@@ -44,8 +50,8 @@ export async function GET() {
 
     const history = ledgerEntries.map((entry) => ({
       id: entry.id,
-      type: entry.delta >= 0 ? 'purchase' : 'consume',
-      credits: Math.abs(entry.delta),
+      type: entry.amount >= 0 ? 'purchase' : 'consume',
+      credits: Math.abs(entry.amount),
       source: entry.source === CreditLedgerEntrySource.STRIPE ? 'stripe' : 'generation',
       label: entry.label,
       createdAt: entry.createdAt.toISOString(),
@@ -59,6 +65,7 @@ export async function GET() {
       detailsPreview: generation.details.trim().slice(0, 140),
       letter: generation.letter,
       emailVersion: generation.emailVersion || '',
+      dossierId: generation.dossierId || null,
       createdAt: generation.createdAt.toISOString(),
     }));
 
@@ -67,7 +74,15 @@ export async function GET() {
         email,
         firstname: user?.firstname || '',
         lastname: user?.lastname || '',
-        credits: balance?.credits ?? 0,
+        addressLine: user?.addressLine || '',
+        postalCode: user?.postalCode || '',
+        city: user?.city || '',
+        phone: user?.phone || '',
+        credits: creditView.totalCredits,
+        freeCredits: creditView.freeCredits,
+        paidCredits: creditView.paidCredits,
+        dailyFreeLimit: creditView.dailyFreeLimit,
+        nextFreeResetAt: creditView.nextFreeResetAt,
       },
       history,
       generations,
@@ -80,6 +95,16 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const session = await requireAuthSession();
+    const sessionEmail = normalizeEmail(session?.user?.email);
+
+    if (!sessionEmail) {
+      return NextResponse.json(
+        { error: 'Vous devez être connecté pour modifier votre compte.' },
+        { status: 401 }
+      );
+    }
+
     let body: AccountBody;
     try {
       body = (await request.json()) as AccountBody;
@@ -87,83 +112,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'JSON invalide.' }, { status: 400 });
     }
 
-    const email = normalizeEmail(body.email);
-    const previousEmail = normalizeEmail(body.previousEmail);
-    const firstname = (body.firstname || '').trim();
-    const lastname = (body.lastname || '').trim();
+    const requestedEmail = normalizeEmail(body.email);
+    const firstname = (body.firstname || '').trim().slice(0, 80);
+    const lastname = (body.lastname || '').trim().slice(0, 80);
+    const addressLine = (body.addressLine || '').trim().slice(0, 200);
+    const postalCode = (body.postalCode || '').trim().slice(0, 20);
+    const city = (body.city || '').trim().slice(0, 80);
+    const phone = (body.phone || '').trim().slice(0, 40);
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email requis.' }, { status: 400 });
+    if (requestedEmail && requestedEmail !== sessionEmail) {
+      return NextResponse.json(
+        { error: 'Le changement d\'adresse email n\'est pas disponible pour le moment.' },
+        { status: 400 }
+      );
     }
 
-    if (previousEmail && previousEmail !== email) {
-      const currentTarget = await prisma.user.findUnique({ where: { email } });
-      if (currentTarget) {
-        return NextResponse.json(
-          { error: 'Un utilisateur existe déjà avec ce nouvel email.' },
-          { status: 409 }
-        );
-      }
-
-      await prisma.$transaction(async (transaction) => {
-        await transaction.user.upsert({
-          where: { email: previousEmail },
-          update: {
-            email,
-            firstname: firstname || null,
-            lastname: lastname || null,
-          },
-          create: {
-            email,
-            firstname: firstname || null,
-            lastname: lastname || null,
-          },
-        });
-
-        await transaction.creditBalance.updateMany({
-          where: { email: previousEmail },
-          data: {
-            email,
-          },
-        });
-
-        await transaction.creditLedgerEntry.updateMany({
-          where: { accountEmail: previousEmail },
-          data: {
-            accountEmail: email,
-          },
-        });
-
-        await transaction.letterGeneration.updateMany({
-          where: { accountEmail: previousEmail },
-          data: {
-            accountEmail: email,
-          },
-        });
-      });
-    }
-
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: {
+    const user = await prisma.user.update({
+      where: { email: sessionEmail },
+      data: {
         firstname: firstname || null,
         lastname: lastname || null,
-      },
-      create: {
-        email,
-        firstname: firstname || null,
-        lastname: lastname || null,
+        addressLine: addressLine || null,
+        postalCode: postalCode || null,
+        city: city || null,
+        phone: phone || null,
+        name: displayName(firstname, lastname, sessionEmail),
       },
     });
 
-    const balance = await prisma.creditBalance.findUnique({ where: { email } });
+    const creditView = await creditService.getBalance(session?.user?.id || '');
 
     return NextResponse.json({
       account: {
         email: user.email,
         firstname: user.firstname || '',
         lastname: user.lastname || '',
-        credits: balance?.credits ?? 0,
+        addressLine: user.addressLine || '',
+        postalCode: user.postalCode || '',
+        city: user.city || '',
+        phone: user.phone || '',
+        credits: creditView.totalCredits,
+        freeCredits: creditView.freeCredits,
+        paidCredits: creditView.paidCredits,
+        dailyFreeLimit: creditView.dailyFreeLimit,
+        nextFreeResetAt: creditView.nextFreeResetAt,
       },
     });
   } catch (error) {

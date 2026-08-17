@@ -11,27 +11,79 @@ datasource db {
 }
 
 model User {
-  id            String              @id @default(auto()) @map("_id") @db.ObjectId
-  email         String              @unique
-  password      String?
-  firstname     String?
-  lastname      String?
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
-  creditBalance CreditBalance?
-  creditEntries CreditLedgerEntry[]
-  generations   LetterGeneration[]
-  freeGenerationsUsed Int         @default(0)
+  id                  String              @id @default(auto()) @map("_id") @db.ObjectId
+  name                String              @default("")
+  email               String              @unique
+  emailVerified       Boolean             @default(false)
+  image               String?
+  firstname           String?
+  lastname            String?
+  addressLine         String?
+  postalCode          String?
+  city                String?
+  phone               String?
+  password            String?
+  role                String              @default("user")
+  banned              Boolean             @default(false)
+  banReason           String?
+  banExpires          DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  /// @deprecated Plus utilisé comme source de vérité crédits v2. Conservé pour l’historique.
+  freeGenerationsUsed Int                 @default(0)
+  sessions            Session[]
+  accounts            Account[]
+  creditBalance       CreditBalance?
+  creditEntries       CreditLedgerEntry[]
+  generations         LetterGeneration[]
+  aiUsages            AiUsage[]
+  dossiers            Dossier[]
+  feedbacks           UserFeedback[]
 }
 
-model PasswordResetToken {
+model Session {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  email     String
-  token     String   @unique
   expiresAt DateTime
+  token     String   @unique
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String   @db.ObjectId
+  user      User     @relation(fields: [userId], references: [id])
 
-  @@index([email, expiresAt])
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  accountId             String
+  providerId            String
+  userId                String    @db.ObjectId
+  user                  User      @relation(fields: [userId], references: [id])
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@unique([providerId, accountId])
+}
+
+model Verification {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
 }
 
 enum CreditLedgerEntryType {
@@ -39,6 +91,11 @@ enum CreditLedgerEntryType {
   CONSUMPTION
   ADJUSTMENT
   REFUND
+  FREE_DAILY
+  AI_USAGE
+  ADMIN_GIFT
+  ADMIN_ADJUSTMENT
+  ROLLBACK
 }
 
 enum CreditLedgerEntrySource {
@@ -48,6 +105,29 @@ enum CreditLedgerEntrySource {
   MIGRATION
 }
 
+enum CreditPool {
+  FREE
+  PAID
+}
+
+enum AiOperation {
+  ANALYZE_SITUATION
+  ASK_QUESTION
+  ADVISE
+  GENERATE_LETTER
+  REWRITE_SELECTION
+  REVISE_DOCUMENT
+  GENERATE_EMAIL
+  ANALYZE_REPLY
+}
+
+enum AiUsageStatus {
+  RESERVED
+  SETTLED
+  ROLLED_BACK
+  FAILED
+}
+
 enum GenerationBillingType {
   FREE
   CREDIT
@@ -55,39 +135,98 @@ enum GenerationBillingType {
   ADMIN
 }
 
+enum DossierStatus {
+  DRAFT
+  IN_PROGRESS
+  READY
+  FINALIZED
+}
+
+enum DocumentVersionSource {
+  AI_GENERATION
+  AI_REWRITE
+  AI_REVISION
+  RESTORE
+}
+
 model CreditBalance {
-  id        String      @id @default(auto()) @map("_id") @db.ObjectId
-  email     String      @unique
-  credits   Int         @default(0)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  user      User        @relation(fields: [email], references: [email])
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId       String    @unique @db.ObjectId
+  user         User      @relation(fields: [userId], references: [id])
+  email        String    @unique
+  /// @deprecated Solde v1. Conservé après migration ; ne plus utiliser comme source de vérité.
+  credits      Int       @default(0)
+  freeCredits  Int       @default(0)
+  paidCredits  Int       @default(0)
+  freeResetAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@map("credit_balances")
 }
 
 model CreditLedgerEntry {
   id                    String                  @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String?                 @db.ObjectId
+  user                  User?                   @relation(fields: [userId], references: [id])
   accountEmail          String                  @map("email")
-  delta                 Int
+  amount                Int                     @map("delta")
+  pool                  CreditPool?
   type                  CreditLedgerEntryType
   source                CreditLedgerEntrySource
   label                 String
   packId                String?
   sessionId             String?
   stripePaymentIntentId String?
+  stripeEventId         String?
+  aiUsageId             String?                 @db.ObjectId
+  adminUserId           String?                 @db.ObjectId
+  reason                String?
+  idempotencyKey        String?                 @unique
   metadata              Json?
   createdAt             DateTime                @default(now())
-  user                  User                    @relation(fields: [accountEmail], references: [email])
 
+  @@index([userId, createdAt])
   @@index([accountEmail, createdAt])
   @@index([sessionId])
+  @@index([stripeEventId])
+  @@index([aiUsageId])
   @@map("credits_ledger")
 }
 
+model AiUsage {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String        @db.ObjectId
+  user            User          @relation(fields: [userId], references: [id])
+  dossierId       String?       @db.ObjectId
+  dossier         Dossier?      @relation(fields: [dossierId], references: [id])
+  provider        String
+  model           String
+  operation       AiOperation
+  inputTokens     Int           @default(0)
+  outputTokens    Int           @default(0)
+  /// Coût estimé en nanodollars USD (1 USD = 1_000_000_000).
+  estimatedCost   Int           @default(0)
+  creditsCharged  Int           @default(0)
+  freeCharged     Int           @default(0)
+  paidCharged     Int           @default(0)
+  status          AiUsageStatus
+  idempotencyKey  String        @unique
+  errorCode       String?
+  expiresAt       DateTime
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@index([dossierId])
+  @@map("ai_usages")
+}
+
 model LetterGeneration {
-  id           String               @id @default(auto()) @map("_id") @db.ObjectId
-  accountEmail String?              @map("email")
+  id           String                @id @default(auto()) @map("_id") @db.ObjectId
+  accountEmail String?               @map("email")
   category     String
   tone         String
   fullName     String?
@@ -98,12 +237,79 @@ model LetterGeneration {
   letter       String
   emailVersion String?
   billingType  GenerationBillingType
-  creditsSpent Int                  @default(0)
-  createdAt    DateTime             @default(now())
-  user         User?                @relation(fields: [accountEmail], references: [email])
+  creditsSpent Int                   @default(0)
+  createdAt    DateTime              @default(now())
+  user         User?                 @relation(fields: [accountEmail], references: [email])
+  dossierId    String?               @db.ObjectId
+  dossier      Dossier?              @relation(fields: [dossierId], references: [id])
 
   @@index([accountEmail, createdAt])
+  @@index([dossierId])
   @@map("letter_generations")
+}
+
+model Dossier {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String             @db.ObjectId
+  user              User               @relation(fields: [userId], references: [id])
+  title             String             @default("")
+  objective         String             @default("")
+  recipientName     String             @default("")
+  recipientCategory String             @default("")
+  context           String             @default("")
+  status            DossierStatus      @default(DRAFT)
+  suggestedTone     String             @default("")
+  /// Conseil de démarche. Aide seulement — l’utilisateur reste responsable du courrier.
+  advice            String             @default("")
+  /// Tableau JSON de { id, prompt, answer }. 0..N questions, facultatives.
+  questions         Json               @default("[]")
+  /// Lien idempotent vers une LetterGeneration migrée. Pas unique : Mongo
+  /// indexe `null` et bloquait la création/duplication des dossiers sans héritage.
+  legacyGenerationId String?           @db.ObjectId
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  document          Document?
+  generations       LetterGeneration[]
+  aiUsages          AiUsage[]
+  feedbacks         UserFeedback[]
+
+  @@index([userId, updatedAt])
+  @@index([legacyGenerationId])
+  @@map("dossiers")
+}
+
+model Document {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  dossierId    String   @unique @db.ObjectId
+  dossier      Dossier  @relation(fields: [dossierId], references: [id])
+  /// Format durable : blocs JSON `blocks-v1` (pas de HTML Figma, pas d’éditeur riche).
+  bodyFormat   String   @default("blocks-v1")
+  /// Tableau JSON de { id, type: "paragraph", text }.
+  bodyBlocks   Json     @default("[]")
+  emailSubject String   @default("")
+  emailBody    String   @default("")
+  revision     Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  versions     DocumentVersion[]
+
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id           String                 @id @default(auto()) @map("_id") @db.ObjectId
+  documentId   String                 @db.ObjectId
+  document     Document               @relation(fields: [documentId], references: [id])
+  revision     Int
+  bodyBlocks   Json
+  emailSubject String                 @default("")
+  emailBody    String                 @default("")
+  source       DocumentVersionSource
+  operation    String?
+  createdAt    DateTime               @default(now())
+
+  @@index([documentId, createdAt])
+  @@map("document_versions")
 }
 
 model CreditPack {
@@ -111,6 +317,7 @@ model CreditPack {
   code            String   @unique
   label           String
   credits         Int
+  creditsGranted  Int?
   priceCents      Int
   stripePriceId   String?
   highlighted     Boolean  @default(false)
@@ -120,4 +327,76 @@ model CreditPack {
   updatedAt       DateTime @updatedAt
 
   @@index([active, sortOrder])
+}
+
+model RateLimitCounter {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, windowStart])
+  @@index([expiresAt])
+  @@map("rate_limits")
+}
+
+model SecurityEvent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  kind      String
+  ipHash    String?
+  route     String
+  status    Int
+  metadata  Json?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([kind, createdAt])
+  @@index([expiresAt])
+  @@map("security_events")
+}
+
+model StripeProcessedSession {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionId String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("stripe_processed_sessions")
+}
+
+enum UserFeedbackKind {
+  TECHNICAL_ISSUE
+  ADVICE_NOT_USEFUL
+  MISUNDERSTANDING
+  LETTER_UNSATISFACTORY
+  REWRITE_INCORRECT
+  OTHER
+}
+
+enum UserFeedbackRating {
+  USEFUL
+  NOT_USEFUL
+}
+
+/// Retour utilisateur. Ne jamais y stocker automatiquement la lettre ni le prompt.
+model UserFeedback {
+  id         String              @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String              @db.ObjectId
+  user       User                @relation(fields: [userId], references: [id])
+  dossierId  String?             @db.ObjectId
+  dossier    Dossier?            @relation(fields: [dossierId], references: [id])
+  aiUsageId  String?             @db.ObjectId
+  operation  AiOperation?
+  kind       UserFeedbackKind
+  rating     UserFeedbackRating?
+  /// Commentaire facultatif saisi explicitement par l’utilisateur (extrait possible).
+  comment    String              @default("")
+  createdAt  DateTime            @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([dossierId])
+  @@map("user_feedbacks")
 }

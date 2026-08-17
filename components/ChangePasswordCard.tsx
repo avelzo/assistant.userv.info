@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useSession } from 'next-auth/react';
+import { useAuthSession } from '@/lib/auth-client';
 import { useState } from 'react';
 
 type ChangePasswordResponse = {
@@ -10,7 +10,7 @@ type ChangePasswordResponse = {
 };
 
 export function ChangePasswordCard() {
-  const { status } = useSession();
+  const { status } = useAuthSession();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -61,9 +61,9 @@ export function ChangePasswordCard() {
   };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-      <h2 className="text-2xl font-bold text-slate-900">Mot de passe</h2>
-      <p className="mt-1 text-sm text-slate-500">
+    <section className="rounded-2xl border border-line bg-paper p-6 shadow-[0_10px_24px_-22px_rgba(28,25,21,0.45)]">
+      <h2 className="font-serif text-2xl font-semibold text-ink">Mot de passe</h2>
+      <p className="mt-1 text-sm text-muted">
         Modifiez votre mot de passe pour sécuriser votre compte.
       </p>
 
@@ -76,7 +76,7 @@ export function ChangePasswordCard() {
         </p>
       ) : (
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
+          <label className="block space-y-2 text-sm font-medium text-ink">
             Mot de passe actuel
             <input
               type="password"
@@ -84,13 +84,13 @@ export function ChangePasswordCard() {
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
               placeholder="Votre mot de passe actuel"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+              className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
               minLength={8}
               required
             />
           </label>
 
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
+          <label className="block space-y-2 text-sm font-medium text-ink">
             Nouveau mot de passe
             <input
               type="password"
@@ -98,13 +98,13 @@ export function ChangePasswordCard() {
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               placeholder="8 caractères minimum"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+              className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
               minLength={8}
               required
             />
           </label>
 
-          <label className="block space-y-2 text-sm font-medium text-slate-700">
+          <label className="block space-y-2 text-sm font-medium text-ink">
             Confirmer le nouveau mot de passe
             <input
               type="password"
@@ -112,7 +112,7 @@ export function ChangePasswordCard() {
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               placeholder="Répétez le nouveau mot de passe"
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-hidden focus:border-blue-500"
+              className="w-full rounded-xl border border-line bg-ivory px-4 py-3 outline-hidden focus:border-primary"
               minLength={8}
               required
             />
@@ -121,7 +121,7 @@ export function ChangePasswordCard() {
           <button
             type="submit"
             disabled={loading}
-            className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-paper hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? 'Mise à jour...' : 'Changer le mot de passe'}
           </button>
@@ -129,11 +129,11 @@ export function ChangePasswordCard() {
       )}
 
       {message ? (
-        <p className="mt-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700">{message}</p>
+        <p className="mt-4 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">{message}</p>
       ) : null}
 
       {error ? (
-        <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+        <p className="mt-4 rounded-xl bg-accent/10 px-4 py-3 text-sm text-accent">{error}</p>
       ) : null}
     </section>
   );

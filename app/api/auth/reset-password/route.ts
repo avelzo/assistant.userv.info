@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hash } from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
+import { auth } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -22,23 +21,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const resetToken = await prisma.passwordResetToken.findUnique({ where: { token } });
-
-  if (!resetToken || resetToken.expiresAt < new Date()) {
+  try {
+    await auth.api.resetPassword({
+      body: {
+        newPassword: password,
+        token,
+      },
+    });
+  } catch {
     return NextResponse.json(
       { error: 'Lien de réinitialisation invalide ou expiré.' },
       { status: 400 }
     );
   }
-
-  const hashedPassword = await hash(password, 12);
-
-  await prisma.user.update({
-    where: { email: resetToken.email },
-    data: { password: hashedPassword },
-  });
-
-  await prisma.passwordResetToken.delete({ where: { token } });
 
   return NextResponse.json({ message: 'Mot de passe mis à jour avec succès.' });
 }

@@ -31,14 +31,14 @@ export default function ResultPage() {
 
 
   return (
-    <main className="min-h-screen bg-slate-50 px-6 py-10">
+    <main className="min-h-screen bg-ivory px-6 py-10">
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">
+            <p className="text-sm font-semibold uppercase tracking-wide text-accent">
               Résultat
             </p>
-            <h1 className="text-3xl font-bold text-slate-900">
+            <h1 className="font-serif text-3xl font-semibold text-ink">
               Votre courrier est prêt
             </h1>
           </div>
@@ -46,7 +46,7 @@ export default function ResultPage() {
           <button
             type="button"
             onClick={handleBack}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white"
+            className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-ink hover:bg-paper"
           >
             Retour
           </button>
@@ -55,8 +55,8 @@ export default function ResultPage() {
         {letter ? (
           <ResultCard content={letter} emailVersion={emailVersion} />
         ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-            <p className="text-slate-600">
+          <div className="rounded-2xl border border-line bg-paper p-6">
+            <p className="text-muted">
               Aucun contenu généré pour le moment. Retournez à l&apos;accueil pour créer une lettre.
             </p>
           </div>

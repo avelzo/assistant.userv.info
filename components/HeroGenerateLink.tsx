@@ -1,22 +1,15 @@
-'use client';
-
 import Link from 'next/link';
-import { useState } from 'react';
-import { FREE_GENERATIONS, getUsedGenerations } from '@/lib/storage';
+import type { ReactNode } from 'react';
 
 type HeroGenerateLinkProps = {
   className?: string;
+  children?: ReactNode;
 };
 
-export function HeroGenerateLink({ className }: HeroGenerateLinkProps) {
-  const [hasFreeTrialLeft] = useState(() => {
-    const usedGenerations = getUsedGenerations();
-    return usedGenerations < FREE_GENERATIONS;
-  });
-
+export function HeroGenerateLink({ className, children }: HeroGenerateLinkProps) {
   return (
     <Link href="/generate" className={className}>
-      {hasFreeTrialLeft ? 'Générer ma lettre gratuitement' : 'Générer ma lettre'}
+      {children ?? 'Commencer une démarche'}
     </Link>
   );
 }

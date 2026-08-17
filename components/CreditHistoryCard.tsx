@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { useAuthSession } from '@/lib/auth-client';
 import {
   getCreditHistory,
   getPaidCredits,
@@ -9,6 +9,7 @@ import {
   setPaidCredits,
   type CreditHistoryEntry,
 } from '@/lib/storage';
+import { getDailyFreeCredits } from '@/lib/credits/config';
 
 function formatDate(value: string): string {
   const parsed = new Date(value);
@@ -26,14 +27,19 @@ function formatDate(value: string): string {
 type AccountSummaryResponse = {
   account?: {
     credits: number;
+    freeCredits?: number;
+    paidCredits?: number;
+    dailyFreeLimit?: number;
   };
   history?: CreditHistoryEntry[];
 };
 
 export function CreditHistoryCard() {
-  const { status } = useSession();
+  const { status } = useAuthSession();
 
-  const [paidCredits, setPaidCreditsState] = useState(() => getPaidCredits());
+  const [paidCredits, setPaidCreditsState] = useState(0);
+  const [freeCredits, setFreeCredits] = useState(0);
+  const [dailyFreeLimit, setDailyFreeLimit] = useState(getDailyFreeCredits);
   const [history, setHistoryState] = useState<CreditHistoryEntry[]>(() => getCreditHistory());
 
   useEffect(() => {
@@ -55,9 +61,12 @@ export function CreditHistoryCard() {
           return;
         }
 
-        const credits = Math.max(0, Number(data.account.credits) || 0);
-        setPaidCredits(credits);
-        setPaidCreditsState(credits);
+        const paid = Math.max(0, Number(data.account.paidCredits ?? data.account.credits) || 0);
+        const free = Math.max(0, Number(data.account.freeCredits) || 0);
+        setPaidCredits(paid);
+        setPaidCreditsState(paid);
+        setFreeCredits(free);
+        setDailyFreeLimit(data.account.dailyFreeLimit ?? getDailyFreeCredits());
 
         if (Array.isArray(data.history)) {
           const nextHistory = setCreditHistory(data.history);
@@ -68,53 +77,56 @@ export function CreditHistoryCard() {
       }
     };
 
-    void syncFromServer();
+    const handleCreditsUpdated = () => {
+      void syncFromServer();
+    };
 
-    window.addEventListener('credits-updated', refreshFromLocal);
+    void syncFromServer();
+    window.addEventListener('credits-updated', handleCreditsUpdated);
 
     return () => {
-      window.removeEventListener('credits-updated', refreshFromLocal);
+      window.removeEventListener('credits-updated', handleCreditsUpdated);
     };
   }, [status]);
 
   const recentEntries = useMemo(() => history.slice(0, 8), [history]);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
+    <section className="rounded-2xl border border-line bg-paper p-6 shadow-[0_10px_24px_-22px_rgba(28,25,21,0.45)]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-slate-900">Historique de crédits</h3>
-          <p className="mt-1 text-sm text-slate-500">
+          <h3 className="font-serif text-lg font-semibold text-ink">Historique de crédits</h3>
+          <p className="mt-1 text-sm text-muted">
             Retrouvez vos achats et vos utilisations récentes en un coup d&apos;œil.
           </p>
         </div>
 
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-          Crédits disponibles : {paidCredits}
+        <span className="rounded-full bg-ivory px-3 py-1 text-sm font-semibold text-ink">
+          Gratuits {freeCredits} / {dailyFreeLimit} · Achetés {paidCredits}
         </span>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+      <div className="mt-4 overflow-hidden rounded-xl border border-line">
         {recentEntries.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-slate-500">
+          <p className="px-4 py-6 text-sm text-muted">
             Aucun mouvement de crédits pour le moment.
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-line">
             {recentEntries.map((entry) => (
               <li
                 key={entry.id}
                 className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{entry.label}</p>
-                  <p className="text-xs text-slate-500">{formatDate(entry.createdAt)}</p>
+                  <p className="text-sm font-medium text-ink">{entry.label}</p>
+                  <p className="text-xs text-muted">{formatDate(entry.createdAt)}</p>
                 </div>
                 <span
                   className={`rounded-md px-2 py-1 text-xs font-semibold ${
                     entry.type === 'purchase'
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-amber-100 text-amber-700'
+                      ? 'bg-primary/10 text-primary'
+                      : 'bg-accent/12 text-accent'
                   }`}
                 >
                   {entry.type === 'purchase' ? `+${entry.credits}` : `-${entry.credits}`} crédit

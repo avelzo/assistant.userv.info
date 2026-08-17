@@ -1,42 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hash } from 'bcryptjs';
+import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { hashPassword } from '@/lib/password';
+import { displayName, assertRegisterGuards, GENERIC_REGISTER_SUCCESS } from '@/lib/register-guards';
+import { getTrustedClientIp } from '@/lib/ip';
+import { recordSecurityEvent } from '@/lib/security-event';
+import { ROLES } from '@/lib/roles';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-
-  if (!body?.email || !body?.password || !body?.firstname) {
-    return NextResponse.json(
-      { error: 'Les champs email, mot de passe et prénom sont obligatoires.' },
-      { status: 400 }
-    );
+  const guards = await assertRegisterGuards({ request: req, body });
+  if (!guards.ok) {
+    return guards.response;
   }
 
-  const email = String(body.email).toLowerCase().trim();
-  const password = String(body.password);
-  const firstname = String(body.firstname).trim();
-  const lastname = body.lastname ? String(body.lastname).trim() : undefined;
+  const { email, password, firstname, lastname } = guards.data;
+  const ip = getTrustedClientIp(req);
 
-  if (password.length < 8) {
-    return NextResponse.json(
-      { error: 'Le mot de passe doit contenir au moins 8 caractères.' },
-      { status: 400 }
-    );
-  }
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    return NextResponse.json(
-      { error: 'Un compte avec cet email existe déjà.' },
-      { status: 409 }
-    );
-  }
-
-  const hashedPassword = await hash(password, 12);
-
-  await prisma.user.create({
-    data: { email, password: hashedPassword, firstname, lastname },
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
   });
 
-  return NextResponse.json({ message: 'Compte créé avec succès.' }, { status: 201 });
+  if (existing) {
+    await recordSecurityEvent({
+      kind: 'REGISTER_BLOCKED',
+      route: '/api/auth/register',
+      status: 201,
+      ip,
+    });
+    return NextResponse.json({ message: GENERIC_REGISTER_SUCCESS }, { status: 201 });
+  }
+
+  const hashedPassword = await hashPassword(password);
+  const name = displayName(firstname, lastname, email);
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password: hashedPassword,
+      name,
+      firstname,
+      lastname: lastname || undefined,
+      emailVerified: false,
+      role: ROLES.USER,
+    },
+  });
+
+  await prisma.account.create({
+    data: {
+      userId: user.id,
+      accountId: user.id,
+      providerId: 'credential',
+      password: hashedPassword,
+    },
+  });
+
+  try {
+    await auth.api.sendVerificationEmail({
+      body: {
+        email,
+        callbackURL: '/account',
+      },
+    });
+  } catch {
+    // La création du compte ne doit pas échouer ni révéler l'état SMTP.
+  }
+
+  return NextResponse.json({ message: GENERIC_REGISTER_SUCCESS }, { status: 201 });
 }

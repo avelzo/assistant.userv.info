@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { GenerationBillingType, CreditLedgerEntryType } from '@prisma/client';
-import { API_MAX_REQUESTS } from '@/lib/constants';
-import { authOptions } from '@/lib/auth';
+import { GenerationBillingType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { requireAuthSession } from '@/lib/session';
+import { getTrustedClientIp } from '@/lib/ip';
+import { rejectIfDisallowedOrigin } from '@/lib/origin';
+import { consumeRateLimit, RATE_LIMITS } from '@/lib/rate-limit';
+import { recordSecurityEvent } from '@/lib/security-event';
+import { creditService, InsufficientCreditsError } from '@/lib/credits';
+import { generateLetterContent } from '@/lib/ai/generate-letter';
+import { dossierService } from '@/lib/dossiers';
+import { isDossierAccessError } from '@/lib/dossiers/errors';
+import { isMongoObjectId } from '@/lib/dossiers/http';
 
 type GenerateRequestBody = {
   category?: string;
@@ -13,73 +20,68 @@ type GenerateRequestBody = {
   subject?: string;
   details?: string;
   attachments?: string;
-};
-
-type RateLimitEntry = {
-  count: number;
-  lastReset: number;
-};
-
-type FreeTrialEntry = {
-  used: boolean;
-  timestamp: number;
-};
-
-const rateLimitMap = new Map<string, RateLimitEntry>();
-const freeTrialMap = new Map<string, FreeTrialEntry>();
-const WINDOW_MS = 60 * 60 * 1000; // 1h
-const FREE_TRIAL_WINDOW_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const MOCK_AI = process.env.MOCK_AI === 'true';
-
-const parseAiPayload = (raw: string): { letter: string; emailVersion: string } | null => {
-  try {
-    const parsed = JSON.parse(raw) as { letter?: unknown; emailVersion?: unknown };
-    if (typeof parsed.letter !== 'string') {
-      return null;
-    }
-
-    return {
-      letter: parsed.letter.trim(),
-      emailVersion: typeof parsed.emailVersion === 'string' ? parsed.emailVersion.trim() : '',
-    };
-  } catch {
-    return null;
-  }
+  idempotencyKey?: string;
+  dossierId?: string;
 };
 
 export async function POST(request: Request) {
+  let reservationId: string | null = null;
+  let providerSucceeded = false;
+
   try {
-    const ipHeader = request.headers.get('x-forwarded-for');
-    const ip = ipHeader?.split(',')[0]?.trim() || 'unknown';
-
-    // Rate limiting
-    const now = Date.now();
-    const userData = rateLimitMap.get(ip) ?? { count: 0, lastReset: now };
-    if (now - userData.lastReset > WINDOW_MS) {
-      userData.count = 0;
-      userData.lastReset = now;
+    const originError = rejectIfDisallowedOrigin(request);
+    if (originError) {
+      await recordSecurityEvent({
+        kind: 'ORIGIN_REJECT',
+        route: '/api/generate',
+        status: 403,
+        ip: getTrustedClientIp(request),
+      });
+      return originError;
     }
-    userData.count += 1;
-    rateLimitMap.set(ip, userData);
 
-    if (userData.count > API_MAX_REQUESTS) {
+    const ip = getTrustedClientIp(request);
+    const ipLimit = await consumeRateLimit({
+      key: `generate:ip:${ip}`,
+      windowMs: RATE_LIMITS.generateIp.windowMs,
+      max: RATE_LIMITS.generateIp.max,
+    });
+
+    if (!ipLimit.allowed) {
+      await recordSecurityEvent({
+        kind: 'RATE_LIMIT',
+        route: '/api/generate',
+        status: 429,
+        ip,
+      });
       return NextResponse.json({ error: 'Trop de requêtes. Réessaie plus tard.' }, { status: 429 });
     }
 
-    if (MOCK_AI) {
+    const session = await requireAuthSession();
+    const email = session?.user?.email?.trim().toLowerCase() || '';
+    const userId = session?.user?.id || '';
+
+    if (!email || !userId) {
       return NextResponse.json(
-        {
-          letter:
-            "Objet : Demande de réexamen\n\nMadame, Monsieur,\n\nJe vous contacte afin de solliciter le réexamen de ma situation. Au regard des éléments transmis, je souhaite que mon dossier soit étudié à nouveau.\n\nJe reste à votre disposition pour fournir tout document complémentaire.\n\nJe vous prie d'agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
-          emailVersion:
-            "Bonjour,\n\nJe souhaite demander le réexamen de mon dossier. Je reste disponible pour transmettre tout justificatif complémentaire.\n\nCordialement.",
-        },
-        { status: 200 }
+        { error: 'Connectez-vous pour générer un courrier.' },
+        { status: 401 }
       );
     }
 
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'API key manquante' }, { status: 500 });
+    const userLimit = await consumeRateLimit({
+      key: `generate:user:${userId}`,
+      windowMs: RATE_LIMITS.generateUser.windowMs,
+      max: RATE_LIMITS.generateUser.max,
+    });
+
+    if (!userLimit.allowed) {
+      await recordSecurityEvent({
+        kind: 'RATE_LIMIT',
+        route: '/api/generate',
+        status: 429,
+        ip,
+      });
+      return NextResponse.json({ error: 'Trop de requêtes. Réessaie plus tard.' }, { status: 429 });
     }
 
     let body: GenerateRequestBody;
@@ -94,127 +96,95 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Description invalide.' }, { status: 400 });
     }
 
-    // Vérifier session et crédits
-    const session = await getServerSession(authOptions);
-    const email = session?.user?.email?.trim().toLowerCase() || '';
-
-    const maxFreeGenerations = Number(process.env.NEXT_PUBLIC_FREE_GENERATIONS || '1');
-
-    let billingType: GenerationBillingType = GenerationBillingType.FREE;
-    let accountEmail: string | null = null;
-
-    if (email) {
-      // Utilisateur connecté
-      accountEmail = email;
-
-      const user = await prisma.user.findUnique({
-        where: { email },
-        select: { freeGenerationsUsed: true },
-      });
-
-      const historicalFreeGenerations = await prisma.letterGeneration.count({
-        where: {
-          accountEmail: email,
-          billingType: GenerationBillingType.FREE,
-        },
-      });
-
-      const recordedFreeGenerationsUsed = user?.freeGenerationsUsed ?? 0;
-      const freeGenerationsUsed = Math.max(recordedFreeGenerationsUsed, historicalFreeGenerations);
-
-      if (user && historicalFreeGenerations > recordedFreeGenerationsUsed) {
-        await prisma.user.update({
-          where: { email },
-          data: { freeGenerationsUsed: historicalFreeGenerations },
-        });
-      }
-
-      if (freeGenerationsUsed >= maxFreeGenerations) {
-        // Essai gratuit déjà utilisé, vérifier crédits payants
-        const balance = await prisma.creditBalance.findUnique({ where: { email } });
-        if (!balance || balance.credits < 1) {
-          return NextResponse.json(
-            { error: 'Vous n\'avez pas assez de crédits. Achetez-en ci-dessous.' },
-            { status: 402 }
-          );
-        }
-        billingType = GenerationBillingType.CREDIT;
-      } else {
-        // Essai gratuit disponible
-        billingType = GenerationBillingType.FREE;
-      }
-    } else {
-      // Utilisateur non connecté, vérifier essai gratuit par IP
-      const trialEntry = freeTrialMap.get(ip);
-      if (trialEntry && now - trialEntry.timestamp < FREE_TRIAL_WINDOW_MS && trialEntry.used) {
-        return NextResponse.json(
-          { error: 'Vous avez déjà utilisé votre essai gratuit. Créez un compte ou achetez des crédits.' },
-          { status: 402 }
-        );
-      }
-      billingType = GenerationBillingType.FREE;
-    }
-
-    // Appeler OpenAI
-    const aiResponse = await fetch(process.env.OPENAPI_URL || '', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content:
-              'Tu es un assistant administratif francophone. Rends strictement un objet JSON avec deux clés: "letter" et "emailVersion". "letter": lettre formelle complète en français (Objet, formule d\'ouverture, corps clair, formule de clôture), max 250 mots. "emailVersion": version email concise et polie, max 140 mots.',
-          },
-          {
-            role: 'user',
-            content: [
-              `Catégorie: ${body.category || 'Autre'}`,
-              `Ton: ${body.tone || 'Standard'}`,
-              `Nom: ${body.fullName || 'Non précisé'}`,
-              `Destinataire: ${body.recipient || 'Non précisé'}`,
-              `Objet demandé: ${body.subject || 'Non précisé'}`,
-              `Détails: ${details}`,
-              `Pièces jointes: ${body.attachments || 'Aucune'}`,
-            ].join('\n'),
-          },
-        ],
-        max_completion_tokens: 900,
-      }),
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { emailVerified: true, email: true },
     });
 
-    const aiData = (await aiResponse.json()) as {
-      error?: { message?: string };
-      choices?: Array<{ message?: { content?: string } }>;
-    };
+    if (!user) {
+      return NextResponse.json({ error: 'Compte introuvable.' }, { status: 401 });
+    }
 
-    if (!aiResponse.ok) {
+    if (!user.emailVerified) {
       return NextResponse.json(
-        { error: aiData.error?.message || 'Erreur OpenAI.' },
-        { status: aiResponse.status || 500 }
+        { error: 'Vérifiez votre adresse e-mail pour utiliser Assistant.' },
+        { status: 403 }
       );
     }
 
-    const content = aiData.choices?.[0]?.message?.content;
-    if (!content) {
-      return NextResponse.json({ error: 'Réponse IA vide.' }, { status: 502 });
+    const idempotencyKey =
+      request.headers.get('idempotency-key')?.trim() ||
+      body.idempotencyKey?.trim() ||
+      `generate:${userId}:${Date.now()}`;
+
+    const dossierId = body.dossierId?.trim() || '';
+    if (dossierId) {
+      if (!isMongoObjectId(dossierId)) {
+        return NextResponse.json({ error: 'Dossier introuvable.' }, { status: 404 });
+      }
+      try {
+        await dossierService.get(userId, dossierId);
+      } catch (error) {
+        if (isDossierAccessError(error)) {
+          return NextResponse.json({ error: error.message }, { status: error.status });
+        }
+        throw error;
+      }
     }
 
-    const parsed = parseAiPayload(content);
-    if (!parsed?.letter) {
-      return NextResponse.json({ error: 'Format de réponse IA invalide.' }, { status: 502 });
+    const reservation = await creditService.reserve({
+      userId,
+      operation: 'GENERATE_LETTER',
+      provider: process.env.MOCK_AI === 'true' ? 'mock' : 'openai',
+      model: process.env.MOCK_AI === 'true' ? 'mock-ai' : process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      idempotencyKey,
+      dossierId: dossierId || null,
+    });
+    reservationId = reservation.usageId;
+
+    let generated;
+    try {
+      generated = await generateLetterContent({
+        category: body.category || 'Autre',
+        tone: body.tone || 'Standard',
+        fullName: body.fullName || 'Non précisé',
+        recipient: body.recipient || 'Non précisé',
+        subject: body.subject || 'Non précisé',
+        details,
+        attachments: body.attachments || 'Aucune',
+      });
+      providerSucceeded = true;
+    } catch (error) {
+      await creditService.rollback({
+        usageId: reservation.usageId,
+        reason: 'provider_error',
+      });
+      const status = typeof error === 'object' && error && 'status' in error ? Number(error.status) : 502;
+      const message = error instanceof Error ? error.message : 'Erreur de génération. Réessayez plus tard.';
+      return NextResponse.json({ error: message }, { status: Number.isFinite(status) ? status : 502 });
     }
 
-    // Créer la LetterGeneration et déduire crédits si nécessaire
-    await prisma.$transaction(async (transaction) => {
-      await transaction.letterGeneration.create({
+    if (!reservation.alreadySettled) {
+      try {
+        await creditService.settle({
+          usageId: reservation.usageId,
+          inputTokens: generated.inputTokens,
+          outputTokens: generated.outputTokens,
+          estimatedCost: generated.estimatedCost,
+          model: generated.model,
+        });
+      } catch {
+        // Usage reste RESERVED : un retry avec la même clé pourra solder sans re-débiter.
+      }
+    }
+
+    const billingType =
+      reservation.paidCharged > 0 ? GenerationBillingType.CREDIT : GenerationBillingType.FREE;
+
+    try {
+      await prisma.letterGeneration.create({
         data: {
-          accountEmail,
+          accountEmail: email,
           category: body.category || 'Autre',
           tone: body.tone || 'Standard',
           fullName: body.fullName || null,
@@ -222,59 +192,62 @@ export async function POST(request: Request) {
           subject: body.subject || null,
           details,
           attachments: body.attachments || null,
-          letter: parsed.letter,
-          emailVersion: parsed.emailVersion,
+          letter: generated.letter,
+          emailVersion: generated.emailVersion,
           billingType,
-          creditsSpent: billingType === GenerationBillingType.FREE ? 0 : 1,
+          creditsSpent: reservation.creditsCharged,
+          ...(dossierId ? { dossierId } : {}),
         },
       });
+    } catch {
+      // Les crédits et AIUsage sont déjà soldés ; on renvoie tout de même le résultat au client.
+    }
 
-      if (billingType === GenerationBillingType.CREDIT && email) {
-        // Déduire 1 crédit de la balance
-        await transaction.creditBalance.update({
-          where: { email },
-          data: { credits: { decrement: 1 } },
-        });
-
-        // Créer une entrée de ledger
-        await transaction.creditLedgerEntry.create({
-          data: {
-            accountEmail: email,
-            delta: -1,
-            type: CreditLedgerEntryType.CONSUMPTION,
-            source: 'GENERATION',
-            label: 'Génération d\'une lettre',
+    if (dossierId) {
+      try {
+        await dossierService.update(userId, dossierId, {
+          document: {
+            bodyText: generated.letter,
+            emailSubject: body.subject || '',
+            emailBody: generated.emailVersion,
           },
         });
-      } else if (billingType === GenerationBillingType.FREE && email) {
-        await transaction.user.update({
-          where: { email },
-          data: { freeGenerationsUsed: { increment: 1 } },
-        });
-      } else if (billingType === GenerationBillingType.FREE && !email) {
-        // Marquer l'essai gratuit comme utilisé pour cette IP
-        freeTrialMap.set(ip, { used: true, timestamp: now });
+      } catch {
+        // Le courrier est déjà renvoyé au client ; le document pourra être resynchronisé plus tard.
       }
-    });
-
-    // Retourner la génération + crédits restants
-    let remainingCredits = 0;
-    if (email) {
-      const updatedBalance = await prisma.creditBalance.findUnique({ where: { email } });
-      remainingCredits = updatedBalance?.credits ?? 0;
     }
+
+    const balance = await creditService.getBalance(userId);
 
     return NextResponse.json(
       {
-        letter: parsed.letter,
-        emailVersion: parsed.emailVersion,
+        letter: generated.letter,
+        emailVersion: generated.emailVersion,
         billingType,
-        remainingCredits,
+        remainingCredits: balance.totalCredits,
+        freeCredits: balance.freeCredits,
+        paidCredits: balance.paidCredits,
+        creditsCharged: reservation.creditsCharged,
+        dossierId: dossierId || null,
       },
       { status: 200 }
     );
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Erreur génération';
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (error instanceof InsufficientCreditsError) {
+      return NextResponse.json(
+        { error: "Vous n'avez pas assez de crédits. Achetez-en ci-dessous." },
+        { status: 402 }
+      );
+    }
+
+    if (reservationId && !providerSucceeded) {
+      try {
+        await creditService.rollback({ usageId: reservationId, reason: 'unhandled_error' });
+      } catch {
+        // Déjà soldé ou rollback déjà effectué.
+      }
+    }
+
+    return NextResponse.json({ error: 'Erreur génération' }, { status: 500 });
   }
 }
