@@ -45,7 +45,7 @@ pipeline {
 
     stage('E2E Tests') {
       steps {
-        sh 'npx playwright install --with-deps chromium'
+        sh 'npx playwright install --with-deps chromium webkit'
         sh 'npm run test:e2e'
       }
     }

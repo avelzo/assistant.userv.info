@@ -17,5 +17,10 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      name: 'webkit-mobile',
+      testMatch: '**/header-account.spec.ts',
+      use: { ...devices['iPhone 13'] },
+    },
   ],
 });
