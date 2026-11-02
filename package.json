@@ -38,6 +38,18 @@
   "overrides": {
     "@prisma/config": {
       "deepmerge-ts": "8.0.2"
+    },
+    "eslint": {
+      "minimatch": "11.0.4"
+    },
+    "@eslint/config-array": {
+      "minimatch": "11.0.4"
+    },
+    "@eslint/eslintrc": {
+      "minimatch": "11.0.4"
+    },
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.4"
     }
   },
   "devDependencies": {
